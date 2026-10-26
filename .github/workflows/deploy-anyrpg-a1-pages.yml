@@ -1,0 +1,110 @@
+name: Publish AnyRPG A1 original WebGL to Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/deploy-anyrpg-a1-pages.yml'
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: highfly-anyrpg-a1-pages
+  cancel-in-progress: false
+
+jobs:
+  publish-a1:
+    name: Publish existing GREEN AnyRPG A1 artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Fetch only the verified GREEN A1 build
+        uses: actions/download-artifact@v4
+        with:
+          name: HIGHFLY-ANYRPG-A1-ORIGINAL-WEBGL
+          run-id: 40405102498
+          repository: drakentzy07/HIGHFLY-ANYRPG-LAB
+          github-token: ${{ github.token }}
+          path: a1-download
+
+      - name: Normalize Unity gzip for GitHub Pages static hosting
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import gzip
+          import shutil
+          from pathlib import Path
+
+          downloaded = Path("a1-download")
+          indices = list(downloaded.rglob("index.html"))
+          if len(indices) != 1:
+              raise SystemExit(f"Expected exactly 1 WebGL index.html, found {len(indices)}")
+          source_root = indices[0].parent
+          target_root = Path("site-publish")
+          if target_root.exists():
+              shutil.rmtree(target_root)
+          shutil.copytree(source_root, target_root)
+          index = target_root / "index.html"
+          build = target_root / "Build"
+          if not build.is_dir():
+              raise SystemExit("Missing Unity WebGL Build directory")
+          if not list(build.glob("*.loader.js")):
+              raise SystemExit("Missing Unity WebGL loader")
+
+          # GitHub Pages does not allow custom Content-Encoding headers.
+          # Convert Unity-generated gzip payloads to their original extensions
+          # so the browser receives the correct .wasm/.js/.data MIME types.
+          count = 0
+          for archive in sorted(build.glob("*.gz")):
+              output = archive.with_suffix("")
+              with gzip.open(archive, "rb") as packed, output.open("wb") as unpacked:
+                  shutil.copyfileobj(packed, unpacked)
+              archive.unlink()
+              count += 1
+              print(f"Unpacked: {output.name} ({output.stat().st_size:,} bytes)")
+
+          html = index.read_text(encoding="utf-8")
+          for extension in [".framework.js.gz", ".wasm.gz", ".data.gz", ".symbols.json.gz"]:
+              html = html.replace(extension, extension[:-3])
+          html = html.replace("WebGL builds are not supported on mobile devices.", "WebGL mobile compatibility is experimental.")
+          index.write_text(html, encoding="utf-8")
+          (target_root / ".nojekyll").touch()
+          required = [
+              list(build.glob("*.loader.js")),
+              list(build.glob("*.framework.js")),
+              list(build.glob("*.wasm")),
+              list(build.glob("*.data")),
+          ]
+          if not all(required):
+              raise SystemExit("Missing decompressed core WebGL files")
+          total = sum(f.stat().st_size for f in target_root.rglob("*") if f.is_file())
+          print(f"WebGL A1 deployment payload: {total:,} bytes; gzip files expanded: {count}")
+          if total > 950_000_000:
+              raise SystemExit("Site exceeds safe GitHub Pages 1GB limit; optimize build before deployment")
+          PY
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages payload
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site-publish
+
+      - name: Deploy AnyRPG A1 to Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Show playable URL
+        run: |
+          echo "A1 URL: ${{ steps.deployment.outputs.page_url }}"
