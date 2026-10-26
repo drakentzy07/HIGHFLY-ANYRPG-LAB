@@ -88,7 +88,9 @@ jobs:
           test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.loader.js' -type f -print -quit)"
           test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.wasm*' -type f -print -quit)"
           test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.data*' -type f -print -quit)"
-          touch "$ROOT/.nojekyll"
+          # GameCI produces root-owned files in its Docker container.
+          # Create .nojekyll with sudo without changing Unity output ownership.
+          sudo touch "$ROOT/.nojekyll"
           echo "WebGL artifact verified. No GitHub Pages deployment yet."
 
       - name: Upload original AnyRPG WebGL artifact
