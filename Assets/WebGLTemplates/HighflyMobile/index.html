@@ -32,7 +32,7 @@ button{color:#fff;background:#11233ebc;border:1px solid #7ba6cc9c;border-radius:
 <div id="stage"><canvas id="unity-canvas" tabindex="-1"></canvas></div>
 <div id="version">HIGHFLY A2 • AnyRPG Features Demo</div>
 <div id="bar"><strong>HIGHFLY A2 MOBILE LAB</strong><div id="progress"><div id="fill"></div></div><small id="status">Cargando Unity WebGL...</small></div>
-<div id="top"><button id="toggleHud" type="button">🎮 CONTROLES</button><button id="fullscreen" type="button">⛶ FULL SCREEN</button></div>
+<div id="top"><button id="gfxMode" type="button">GFX: SEGURO</button><button id="toggleDiag" type="button">DIAG ON</button><button id="toggleHud" type="button">🎮 CONTROLES</button><button id="fullscreen" type="button">⛶ FULL SCREEN</button></div>
 <button id="enter" type="button">⛶ ENTRAR EN PANTALLA COMPLETA</button>
 <div id="hud" aria-label="Controles táctiles">
 <div id="pad"><div id="knob"></div></div>
@@ -59,6 +59,9 @@ button{color:#fff;background:#11233ebc;border:1px solid #7ba6cc9c;border-radius:
  document.getElementById('fullscreen').addEventListener('click',fullscreen);
  enter.addEventListener('click',fullscreen);
  document.getElementById('toggleHud').addEventListener('click',()=>{hudVisible=!hudVisible;hud.style.display=isTouch&&hudVisible?'block':'none'});
+ let safeGraphics=true,showDiag=true;
+ document.getElementById('gfxMode').addEventListener('click',()=>{safeGraphics=!safeGraphics;send('SetGraphicsMode',safeGraphics?'SAFE':'ORIGINAL');document.getElementById('gfxMode').textContent='GFX: '+(safeGraphics?'SEGURO':'ORIGINAL');});
+ document.getElementById('toggleDiag').addEventListener('click',()=>{showDiag=!showDiag;send('SetDiagnostics',showDiag?'1':'0');document.getElementById('toggleDiag').textContent='DIAG '+(showDiag?'ON':'OFF');});
  const pad=document.getElementById('pad'),knob=document.getElementById('knob');
  let padId=null;
  function movePad(e){
