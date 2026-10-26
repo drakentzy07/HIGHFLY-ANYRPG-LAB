@@ -1,0 +1,106 @@
+name: A2 - HIGHFLY AnyRPG Mobile WebGL to Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'Assets/Editor/HighflyAnyRpgA2MobileBuild.cs'
+      - 'Assets/HighflyA2Runtime/**'
+      - 'Assets/WebGLTemplates/HighflyMobile/**'
+      - '.github/workflows/highfly-a2-mobile-pages.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: highfly-anyrpg-a2-pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build Unity A2 mobile + deploy Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Unity license verification
+        shell: bash
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$UNITY_LICENSE" && -z "$UNITY_SERIAL" ]]; then echo "::error::Unity license missing"; exit 1; fi
+          if [[ -z "$UNITY_EMAIL" || -z "$UNITY_PASSWORD" ]]; then echo "::error::Unity credentials missing"; exit 1; fi
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: anyrpg-a2-6000.3.10f1-webgl-${{ hashFiles('Packages/packages-lock.json', 'Assets/Editor/HighflyAnyRpgA2MobileBuild.cs') }}
+          restore-keys: |
+            anyrpg-6000.3.10f1-webgl-
+      - name: Build AnyRPG A2 Mobile
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.3.10f1
+          targetPlatform: WebGL
+          buildMethod: Highfly.Editor.AnyRpgA2MobileBuild.BuildWebGL
+          buildsPath: build
+          allowDirtyBuild: true
+      - name: Prepare WebGL for GitHub Pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import gzip
+          import shutil
+          from pathlib import Path
+          source=Path('build/WebGL/HIGHFLY-ANYRPG-A2')
+          dest=Path('site-publish')
+          if dest.exists(): shutil.rmtree(dest)
+          shutil.copytree(source,dest)
+          index=dest/'index.html'
+          html=index.read_text(encoding='utf-8')
+          assert 'HighflyA2MobileBridge' in html, 'A2 mobile template not present!'
+          build=dest/'Build'
+          count=0
+          for gz in build.glob('*.gz'):
+              path=gz.with_suffix('')
+              with gzip.open(gz,'rb') as packed,open(path,'wb') as out: shutil.copyfileobj(packed,out)
+              gz.unlink()
+              count+=1
+          for suffix in ['.framework.js.gz','.wasm.gz','.data.gz','.symbols.json.gz']:
+              html=html.replace(suffix,suffix[:-3])
+          index.write_text(html,encoding='utf-8')
+          (dest/'.nojekyll').touch()
+          for suffix in ('*.loader.js','*.framework.js','*.wasm','*.data'):
+              if not list(build.glob(suffix)): raise Exception('Missing WebGL core file: '+suffix)
+          print('HIGHFLY A2 mobile payload ready; uncompressed files:', count)
+          PY
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site-publish
+      - name: Deploy A2 to Pages
+        uses: actions/deploy-pages@v4
+        id: deployment
+      - name: Print test link
+        run: echo "A2 URL ${{ steps.deployment.outputs.page_url }}"

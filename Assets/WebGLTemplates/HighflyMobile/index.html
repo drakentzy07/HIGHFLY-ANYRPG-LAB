@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,height=device-height,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#090d16">
+<title>HIGHFLY A2 | AnyRPG Mobile Lab</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080c12;color:#fff;font:600 14px system-ui,sans-serif;touch-action:none;overscroll-behavior:none;}
+#stage{position:fixed;inset:0;background:#000;overflow:hidden;}
+#unity-canvas{display:block;width:100%;height:100%;outline:none;touch-action:none;}
+#bar{position:fixed;left:50%;top:48%;transform:translate(-50%,-50%);text-align:center;min-width:240px;background:#101b29dd;border:1px solid #3b5670;border-radius:12px;padding:20px;z-index:12}
+#progress{height:9px;background:#233047;border-radius:9px;overflow:hidden;margin:12px 0;}
+#fill{width:0;height:100%;background:#20cfad;transition:width .1s;}
+#top{position:fixed;right:max(10px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top));z-index:15;display:flex;gap:6px}
+button{color:#fff;background:#11233ebc;border:1px solid #7ba6cc9c;border-radius:10px;padding:9px;touch-action:none;font-weight:700}
+#enter{position:fixed;z-index:14;bottom:19%;left:50%;transform:translateX(-50%);font-size:15px;white-space:nowrap;}
+#hud{display:none;position:fixed;inset:0;pointer-events:none;z-index:11;}
+#hud button,#pad,#camera{pointer-events:auto;}
+#pad{position:absolute;bottom:max(9%,env(safe-area-inset-bottom));left:max(4%,env(safe-area-inset-left));width:min(27vh,23vw);height:min(27vh,23vw);min-width:92px;min-height:92px;border-radius:50%;background:#152c459c;border:2px solid #78b8c8a3;touch-action:none;}
+#knob{position:absolute;width:40%;height:40%;left:30%;top:30%;border-radius:50%;background:#b4e2eebb;border:2px solid #fff9;box-sizing:border-box;pointer-events:none;}
+#buttons{position:absolute;bottom:max(8%,env(safe-area-inset-bottom));right:max(3%,env(safe-area-inset-right));display:grid;grid-template-columns:repeat(3,minmax(42px,8vh));gap:5px;align-items:center;}
+#buttons button{height:min(9vh,66px);min-height:37px;padding:3px;font-size:clamp(10px,2.4vh,15px);background:#132d49c9;}
+#buttons button.pressed{background:#147e80e8;}
+#camera{position:absolute;left:41%;bottom:4%;height:24%;width:18%;border:1px dashed #578aaa77;border-radius:15px;color:#a5c3d5aa;font-size:11px;text-align:center;display:flex;align-items:center;justify-content:center;background:#07182742;touch-action:none;}
+#version{position:fixed;left:5px;top:5px;z-index:10;opacity:.55;font-size:10px;pointer-events:none;}
+@media (pointer:fine){#enter{display:none!important}#hud{display:none!important}}
+@media (orientation:portrait){#pad{left:4%;bottom:8%;}#buttons{right:2%;bottom:8%;}}
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="unity-canvas" tabindex="-1"></canvas></div>
+<div id="version">HIGHFLY A2 • AnyRPG Features Demo</div>
+<div id="bar"><strong>HIGHFLY A2 MOBILE LAB</strong><div id="progress"><div id="fill"></div></div><small id="status">Cargando Unity WebGL...</small></div>
+<div id="top"><button id="toggleHud" type="button">🎮 CONTROLES</button><button id="fullscreen" type="button">⛶ FULL SCREEN</button></div>
+<button id="enter" type="button">⛶ ENTRAR EN PANTALLA COMPLETA</button>
+<div id="hud" aria-label="Controles táctiles">
+<div id="pad"><div id="knob"></div></div>
+<div id="camera">CÁMARA</div>
+<div id="buttons">
+<button data-key="L">L</button><button data-key="MENU">MENÚ</button><button data-key="R">R</button>
+<button data-key="X">USAR / X</button><button data-key="Y">Y</button><button data-key="B">ATRÁS / B</button>
+<button data-key="A" style="grid-column:2 / 4">SALTAR / A</button>
+</div>
+</div>
+<script>
+(() => {
+ const canvas=document.getElementById('unity-canvas');
+ const hud=document.getElementById('hud'), isTouch=matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0;
+ const enter=document.getElementById('enter'), status=document.getElementById('status');
+ let unity=null, hudVisible=isTouch;
+ function send(method,arg){if(unity)try{unity.SendMessage('HighflyA2MobileBridge',method,arg)}catch(e){console.warn(e)}}
+ async function fullscreen(){
+   try { if(!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({navigationUI:'hide'}); }
+   catch(e){console.log('Fullscreen requires browser support',e);}
+   try {if(screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');}catch(e){console.log('Rotation is user/browser controlled',e);}
+   canvas.focus(); enter.style.display='none';
+ }
+ document.getElementById('fullscreen').addEventListener('click',fullscreen);
+ enter.addEventListener('click',fullscreen);
+ document.getElementById('toggleHud').addEventListener('click',()=>{hudVisible=!hudVisible;hud.style.display=isTouch&&hudVisible?'block':'none'});
+ const pad=document.getElementById('pad'),knob=document.getElementById('knob');
+ let padId=null;
+ function movePad(e){
+   const r=pad.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, radius=r.width*0.35;
+   let x=(e.clientX-cx)/radius,y=(cy-e.clientY)/radius;
+   const l=Math.hypot(x,y);if(l>1){x/=l;y/=l;}
+   knob.style.transform='translate('+x*radius+'px,'+(-y)*radius+'px)';
+   send('SetStick',x.toFixed(3)+','+y.toFixed(3));
+ }
+ pad.addEventListener('pointerdown',e=>{e.preventDefault();padId=e.pointerId;pad.setPointerCapture(padId);movePad(e)});
+ pad.addEventListener('pointermove',e=>{if(e.pointerId===padId)movePad(e)});
+ function resetPad(e){if(padId!==null && (e.pointerId===padId||!e.type.includes('pointer'))){padId=null;knob.style.transform='';send('SetStick','0,0')}}
+ pad.addEventListener('pointerup',resetPad);pad.addEventListener('pointercancel',resetPad);window.addEventListener('blur',()=>resetPad({type:'blur'}));
+ document.querySelectorAll('[data-key]').forEach(b=>{
+   let downId=null;
+   b.addEventListener('pointerdown',e=>{e.preventDefault();downId=e.pointerId;b.setPointerCapture(downId);b.classList.add('pressed');send('SetAction',b.dataset.key+':1')});
+   const up=e=>{if(downId!==null){downId=null;b.classList.remove('pressed');send('SetAction',b.dataset.key+':0')}};
+   b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);window.addEventListener('blur',up);
+ });
+ const camera=document.getElementById('camera'); let cid=null,cx=0,cy=0;
+ camera.addEventListener('pointerdown',e=>{cid=e.pointerId;cx=e.clientX;cy=e.clientY;camera.setPointerCapture(cid);e.preventDefault()});
+ camera.addEventListener('pointermove',e=>{if(cid===e.pointerId){let x=Math.max(-1,Math.min(1,(e.clientX-cx)/42));let y=Math.max(-1,Math.min(1,(cy-e.clientY)/42));send('SetCamera',x.toFixed(3)+','+y.toFixed(3));cx=e.clientX;cy=e.clientY}});
+ const endCam=()=>{cid=null;send('SetCamera','0,0')};
+ camera.addEventListener('pointerup',endCam);camera.addEventListener('pointercancel',endCam);
+ document.addEventListener('contextmenu',e=>e.preventDefault());
+ const buildUrl='Build';
+ const config={
+   dataUrl: buildUrl+'/{{{ DATA_FILENAME }}}',
+   frameworkUrl: buildUrl+'/{{{ FRAMEWORK_FILENAME }}}',
+   codeUrl: buildUrl+'/{{{ CODE_FILENAME }}}',
+   streamingAssetsUrl:'StreamingAssets',
+   companyName:'{{{ COMPANY_NAME }}}',
+   productName:'{{{ PRODUCT_NAME }}}',
+   productVersion:'{{{ PRODUCT_VERSION }}}'
+ };
+ let loader=document.createElement('script');loader.src=buildUrl+'/{{{ LOADER_FILENAME }}}';
+ loader.onload=()=>{
+   createUnityInstance(canvas,config,p=>{document.getElementById('fill').style.width=(p*100).toFixed(1)+'%';status.textContent='Descargando mundo... '+Math.round(p*100)+'%';})
+   .then(inst=>{unity=inst;document.getElementById('bar').style.display='none';hud.style.display=isTouch&&hudVisible?'block':'none';canvas.focus();})
+   .catch(err=>{status.textContent='ERROR AL INICIAR: '+err;console.error(err);});
+ };
+ loader.onerror=()=>{status.textContent='ERROR: no se encontró el cargador de Unity';};
+ document.body.appendChild(loader);
+})();
+</script>
+</body>
+</html>
