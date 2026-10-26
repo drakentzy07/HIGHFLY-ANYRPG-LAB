@@ -53,8 +53,9 @@ namespace Highfly.Editor
 
         private static void EnsureTmpEssentialResources()
         {
-            // Existing AnyRPG font materials reference the historical TMP SDF shader GUID.
-            // Without importing Essential Resources, WebGL renders their quads magenta.
+            // Many pre-existing AnyRPG font materials point to TMP's standard SDF shader GUID.
+            // AssetDatabase.ImportPackage(unitypackage, false) is asynchronous in batchmode
+            // and can leave the asset database unchanged; unpack the Unity tarball directly.
             const string sdfGuid = "68e6db2ebdc24f95958faec2be5558d6";
             if (string.IsNullOrEmpty(AssetDatabase.GUIDToAssetPath(sdfGuid)))
             {
@@ -68,23 +69,63 @@ namespace Highfly.Editor
                         if (File.Exists(candidate)) { pkg = candidate; break; }
                     }
                 }
-
                 if (string.IsNullOrEmpty(pkg))
-                    throw new FileNotFoundException("[HIGHFLY A2] TMP Essential Resources package not found inside Unity UGUI cache.");
+                    throw new FileNotFoundException("[HIGHFLY A2] TMP Essential Resources unitypackage not found.");
 
-                Debug.Log("[HIGHFLY A2] Importing TMP Essential Resources from: " + pkg);
-                AssetDatabase.ImportPackage(pkg, false);
-                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                string temp = Path.Combine(Path.GetTempPath(), "highfly-tmp-essential-" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(temp);
+                try
+                {
+                    // .unitypackage = gzip tar: each guid directory contains pathname, asset, asset.meta.
+                    var psi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "/usr/bin/tar",
+                        Arguments = "-xzf \"" + pkg + "\" -C \"" + temp + "\"",
+                        UseShellExecute = false,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    using (var process = System.Diagnostics.Process.Start(psi))
+                    {
+                        string error = process.StandardError.ReadToEnd();
+                        process.WaitForExit();
+                        if (process.ExitCode != 0)
+                            throw new Exception("[HIGHFLY A2] tar TMP essentials extraction failed: " + error);
+                    }
+                    int count = 0;
+                    foreach (string pathname in Directory.GetFiles(temp, "pathname", SearchOption.AllDirectories))
+                    {
+                        string path = File.ReadAllText(pathname).Trim().Replace('\\', '/');
+                        // Never write outside project-owned TMP assets.
+                        if (!path.StartsWith("Assets/TextMesh Pro/", StringComparison.Ordinal)) continue;
+                        string payload = Path.Combine(Path.GetDirectoryName(pathname), "asset");
+                        string metadata = Path.Combine(Path.GetDirectoryName(pathname), "asset.meta");
+                        if (!File.Exists(payload)) continue;
+                        string output = Path.GetFullPath(path);
+                        Directory.CreateDirectory(Path.GetDirectoryName(output));
+                        if (!File.Exists(output)) File.Copy(payload, output);
+                        if (File.Exists(metadata) && !File.Exists(output + ".meta"))
+                            File.Copy(metadata, output + ".meta");
+                        count++;
+                    }
+                    Debug.Log("[HIGHFLY A2] Extracted TMP essential resources entries: " + count);
+                    if (count < 1)
+                        throw new Exception("[HIGHFLY A2] Unity TMP essentials tar did not contain Assets/TextMesh Pro entries.");
+                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                }
+                finally
+                {
+                    if (Directory.Exists(temp)) Directory.Delete(temp, true);
+                }
             }
 
             string shaderPath = AssetDatabase.GUIDToAssetPath(sdfGuid);
             if (string.IsNullOrEmpty(shaderPath))
-                throw new Exception("[HIGHFLY A2] TMP SDF shader GUID is still missing after essentials import.");
-
-            Shader sdf = AssetDatabase.LoadAssetAtPath<Shader>(shaderPath);
-            if (sdf == null)
-                throw new Exception("[HIGHFLY A2] TMP SDF shader file not importable: " + shaderPath);
-            Debug.Log("[HIGHFLY A2] TMP shader resolved: " + sdf.name + " at " + shaderPath);
+                throw new Exception("[HIGHFLY A2] TMP SDF shader GUID missing even after extracting unitypackage.");
+            Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(shaderPath);
+            if (shader == null || !shader.isSupported)
+                throw new Exception("[HIGHFLY A2] TMP SDF shader unavailable or unsupported: " + shaderPath);
+            Debug.Log("[HIGHFLY A2] TMP SDF shader OK: " + shader.name + " (" + shaderPath + ")");
         }
     }
 }
