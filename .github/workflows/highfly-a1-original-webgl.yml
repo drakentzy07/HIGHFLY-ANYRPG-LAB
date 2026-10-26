@@ -1,0 +1,95 @@
+name: A1 - AnyRPG Original Features Demo WebGL
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: anyrpg-original-demo-webgl
+  cancel-in-progress: false
+
+jobs:
+  original-demo-webgl:
+    name: Build original AnyRPG (Unity 6000.3.10f1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check Unity activation is configured
+        shell: bash
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$UNITY_LICENSE" && -z "$UNITY_SERIAL" ]]; then
+            echo "::error::Unity activation missing. Set UNITY_LICENSE (Personal) or UNITY_SERIAL (Pro) in repository Actions secrets."
+            exit 1
+          fi
+          if [[ -z "$UNITY_EMAIL" || -z "$UNITY_PASSWORD" ]]; then
+            echo "::error::Set UNITY_EMAIL and UNITY_PASSWORD as Actions secrets. Never put credentials in source files."
+            exit 1
+          fi
+          echo "Unity activation inputs are present (values not printed)."
+
+      - name: Check out unmodified AnyRPG fork
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 1
+
+      - name: Verify Unity version and original demo scenes
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'm_EditorVersion: 6000.3.10f1' ProjectSettings/ProjectVersion.txt
+          test -f Assets/AnyRPG/Core/Games/FeaturesDemoGame/Scenes/Game/FeaturesDemoGame/FeaturesDemoGame.unity
+          test -f Assets/AnyRPG/Core/Games/FeaturesDemoGame/Scenes/Game/FeaturesDemoMainMenu/FeaturesDemoMainMenu.unity
+          test -f Assets/AnyRPG/Core/Games/FeaturesDemoGame/Scenes/Content/FeaturesDemoZone/FeaturesDemoZone.unity
+          echo "Original Features Demo scenes found."
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: anyrpg-6000.3.10f1-webgl-${{ hashFiles('Packages/packages-lock.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: |
+            anyrpg-6000.3.10f1-webgl-
+
+      - name: Build original demo for WebGL
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.3.10f1
+          targetPlatform: WebGL
+          buildMethod: Highfly.Editor.AnyRpgA1Build.BuildWebGL
+          buildsPath: build
+          allowDirtyBuild: true
+
+      - name: Validate downloadable WebGL build
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=build/WebGL/HIGHFLY-ANYRPG-A1
+          test -s "$ROOT/index.html"
+          test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.loader.js' -type f -print -quit)"
+          test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.wasm*' -type f -print -quit)"
+          test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.data*' -type f -print -quit)"
+          touch "$ROOT/.nojekyll"
+          echo "WebGL artifact verified. No GitHub Pages deployment yet."
+
+      - name: Upload original AnyRPG WebGL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-ANYRPG-A1-ORIGINAL-WEBGL
+          path: build/WebGL/HIGHFLY-ANYRPG-A1/
+          if-no-files-found: error
+          retention-days: 14
