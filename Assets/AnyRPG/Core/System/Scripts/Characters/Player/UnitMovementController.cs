@@ -1258,6 +1258,29 @@ namespace AnyRPG {
 
             currentIMovementState.Update(isReplay, timeInterval);
 
+            // HIGHFLY FURY 360: a short native-physics dash. Do not translate
+            // the transform or bypass collisions / AnyRPG ground physics.
+            if (!isReplay && unitController.IsMounted == false
+                && unitController.UnitControllerMode == UnitControllerMode.Player
+                && HIGHFLY.Mobile.HighflyTouchInputState.Enabled
+                && HIGHFLY.Mobile.HighflyTouchInputState.DashActive)
+            {
+                Vector3 camForward = movementData.CameraWantedDirection;
+                camForward.y = 0f;
+                if (camForward.sqrMagnitude < .0001f) camForward = unitController.transform.forward;
+                camForward.Normalize();
+                Vector2 stick = HIGHFLY.Mobile.HighflyTouchInputState.DashDirection;
+                Vector3 dashWorld = Quaternion.LookRotation(camForward)
+                    * new Vector3(stick.x, 0f, stick.y);
+                if (dashWorld.sqrMagnitude > .001f)
+                {
+                    float vy = unitController.UnitMotor.MovementBody.GetLinearVelocity().y;
+                    unitController.UnitMotor.Move(dashWorld.normalized
+                        * HIGHFLY.Mobile.HighflyTouchInputState.DashSpeed
+                        + Vector3.up * vy);
+                }
+            }
+
             if (unitController.IsMounted == false) {
                 LateGlobalStateUpdate(timeInterval);
             }
