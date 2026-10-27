@@ -701,8 +701,23 @@ namespace HIGHFLY.Mobile
             if (controller == null) return;
             if (controller.Interactables != null && controller.Interactables.Count > 0)
             {
-                controller.RightMouseInteraction(controller.Interactables[
-                    controller.Interactables.Count - 1]);
+                // Prioritize the physically nearest valid interaction.
+                // The previous implementation picked the last list element,
+                // often opening the wrong object/NPC on touch screens.
+                var playerPosition = gameManager.PlayerManagerClient.UnitController.transform.position;
+                InteractableBase nearest = null;
+                float nearestSq = float.MaxValue;
+                foreach (var candidate in controller.Interactables)
+                {
+                    if (candidate == null) continue;
+                    float distanceSq = (candidate.transform.position - playerPosition).sqrMagnitude;
+                    if (distanceSq < nearestSq)
+                    {
+                        nearest = candidate;
+                        nearestSq = distanceSq;
+                    }
+                }
+                if (nearest != null) controller.RightMouseInteraction(nearest);
             }
             else
             {
