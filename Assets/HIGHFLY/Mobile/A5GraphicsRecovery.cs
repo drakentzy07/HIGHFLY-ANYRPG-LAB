@@ -91,7 +91,9 @@ namespace Highfly
                 hasSavedCamera = false;
             }
             if (cam != null && safe) ApplySafeCamera(cam);
-            RebuildDiagnostics(cam);
+            // Expensive mesh/terrain/UI enumeration is development-only.
+            // It previously ran every three seconds even with diagnostics hidden.
+            if (showDiagnostics) RebuildDiagnostics(cam);
         }
 
         private void ApplySafeCamera(Camera cam)
