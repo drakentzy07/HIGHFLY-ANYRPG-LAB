@@ -25,6 +25,7 @@ namespace AnyRPG {
 
         private IMovementState currentIMovementState;
         private CharacterMovementState currentCharacterMovementState;
+        private bool highflySecondJumpUsed;
         private Dictionary<CharacterMovementState, IMovementState> movementStates = new Dictionary<CharacterMovementState, IMovementState>();
 
         MovementData accumulatedMovementData = new MovementData();
@@ -1247,6 +1248,30 @@ namespace AnyRPG {
 
             currentMovementData = movementData;
 
+            // HIGHFLY FURY: keep the native movement state active during a dash.
+            // An idle unit freezes X/Z rigidbody constraints; velocity after
+            // Idle.Update() alone cannot move it, hence the prior invisible dash.
+            bool mobilePlayer = unitController.UnitControllerMode == UnitControllerMode.Player
+                && HIGHFLY.Mobile.HighflyTouchInputState.Enabled
+                && !unitController.IsMounted;
+            bool highflyAirborneBefore = currentCharacterMovementState ==
+                CharacterMovementState.Jump || currentCharacterMovementState ==
+                CharacterMovementState.Fall || currentCharacterMovementState ==
+                CharacterMovementState.Glide;
+            if (mobilePlayer && HIGHFLY.Mobile.HighflyTouchInputState.DashActive)
+            {
+                var dir = HIGHFLY.Mobile.HighflyTouchInputState.DashDirection;
+                var camForward = currentMovementData.CameraWantedDirection;
+                camForward.y = 0;
+                if (camForward.sqrMagnitude < .0001f) camForward = unitController.transform.forward;
+                camForward.Normalize();
+                currentMovementData.InputHorizontal = dir.x;
+                currentMovementData.InputVertical = dir.y;
+                currentMovementData.NormalizedMoveInput = new Vector3(dir.x,0,dir.y);
+                currentMovementData.IntendedWorldDirection = Quaternion.LookRotation(camForward)
+                    * currentMovementData.NormalizedMoveInput;
+            }
+
             if (unitController.IsMounted == false) {
                 if (movementData.HasAnyInput() == true
                 && (networkManagerServer.ServerModeActive == true || systemGameManager.GameMode == GameMode.Local)) {
@@ -1257,6 +1282,26 @@ namespace AnyRPG {
             }
 
             currentIMovementState.Update(isReplay, timeInterval);
+
+            // First jump is native AnyRPG. Repeated jump while already in
+            // Jump/Fall restarts its existing physics jump state once per airtime.
+            // No aerial flips, animation kitbashing or position teleportation.
+            if (!isReplay && mobilePlayer && !unitController.ControlLocked)
+            {
+                if (!highflyAirborneBefore && touchingGround &&
+                    (currentCharacterMovementState == CharacterMovementState.Idle ||
+                     currentCharacterMovementState == CharacterMovementState.Move))
+                    highflySecondJumpUsed = false;
+
+                if (highflyAirborneBefore && currentMovementData.InputJump &&
+                    !highflySecondJumpUsed && !unitController.IsEncumbered)
+                {
+                    highflySecondJumpUsed = true;
+                    intendedWorldMoveVelocity = unitController.UnitMotor.MovementBody.GetLinearVelocity();
+                    intendedWorldMoveVelocity.y = 0;
+                    ChangeState(CharacterMovementState.Jump, false);
+                }
+            }
 
             // HIGHFLY FURY 360: a short native-physics dash. Do not translate
             // the transform or bypass collisions / AnyRPG ground physics.
