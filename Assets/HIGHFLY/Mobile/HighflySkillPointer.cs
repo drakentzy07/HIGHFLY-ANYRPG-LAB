@@ -10,6 +10,7 @@ namespace HIGHFLY.Mobile
     {
         public static bool Active;
         public static Vector2 ScreenPosition;
+        public static Vector3 WorldPosition;
     }
 
     public sealed class HighflySkillPointer : MonoBehaviour,
