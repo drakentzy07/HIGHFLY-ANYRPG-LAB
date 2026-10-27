@@ -254,6 +254,15 @@ namespace HIGHFLY.Mobile
                         manager.SetAutoAttackAbility(learned);
                         break;
                     }
+            // The stock Mecanim player has "Unarmed" but no default ability.
+            // Reuse the original Features Demo Attack resource in that case.
+            // Nothing is unlocked or written into the player's saved ability list.
+            if (manager.AutoAttackAbility == null && gameManager.SystemDataFactory != null)
+            {
+                var attackResource = gameManager.SystemDataFactory.GetResource<Ability>("Attack");
+                if (attackResource != null && attackResource.AbilityProperties != null)
+                    manager.SetAutoAttackAbility(attackResource.AbilityProperties);
+            }
             var basic = manager.AutoAttackAbility;
             attackButton.interactable = true; // always allow feedback on press
             attackIcon.enabled = basic != null && basic.Icon != null;
@@ -286,9 +295,15 @@ namespace HIGHFLY.Mobile
             var manager = unit.CharacterAbilityManager;
             if (manager.AutoAttackAbility == null)
                 manager.LearnDefaultAutoAttackAbility();
+            if (manager.AutoAttackAbility == null && gameManager.SystemDataFactory != null)
+            {
+                var attackResource = gameManager.SystemDataFactory.GetResource<Ability>("Attack");
+                if (attackResource != null)
+                    manager.SetAutoAttackAbility(attackResource.AbilityProperties);
+            }
             if (manager.AutoAttackAbility == null)
             {
-                Debug.LogWarning("[HIGHFLY FURY] El personaje no tiene un ataque básico asignado; revisar el perfil o el arma.");
+                Debug.LogWarning("[HIGHFLY FURY] No se encontró el recurso nativo de ataque básico.");
                 return;
             }
             UnitController enemy = unit.Target as UnitController;
@@ -319,7 +334,10 @@ namespace HIGHFLY.Mobile
             }
             else
             {
-                Debug.Log("[HIGHFLY FURY] No hay enemigo válido cerca: AnyRPG no ataca NPCs amistosos.");
+                // A basic swing may still animate without a target depending on
+                // the unit's own attack clips. Never damage friendly NPCs.
+                manager.AttemptAutoAttack(true);
+                Debug.Log("[HIGHFLY FURY] Sin objetivo hostil próximo.");
             }
         }
 
