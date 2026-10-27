@@ -11,7 +11,7 @@ namespace Highfly
     public sealed class A5GraphicsRecovery : MonoBehaviour
     {
         private bool safe = true;
-        private bool showDiagnostics = true;
+        private bool showDiagnostics = false; // Hidden on normal gameplay; remains manually togglable.
         private int originalQuality;
         private Camera cameraUnderTest;
         private CameraClearFlags savedClearFlags;
@@ -149,7 +149,7 @@ namespace Highfly
                 " rect=" + cam.rect.ToString("F1") +
                 " clear=" + cam.clearFlags;
             diagnostics =
-                "A2.1 [" + (safe ? "GFX SEGURO" : "GFX ORIGINAL") + "] / " +
+                "HIGHFLY A5 [" + (safe ? "GFX SEGURO" : "GFX ORIGINAL") + "] / " +
                 SceneManager.GetActiveScene().name + "\n" +
                 camInfo + "\n" +
                 "Mesh=" + meshes + " Skinned=" + skinned + " Terrain=" + terrains +
