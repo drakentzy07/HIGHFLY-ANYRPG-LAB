@@ -5,7 +5,7 @@ on:
     workflows:
       - A5 - AnyRPG Native Mobile HUD WebGL
     branches:
-      - highfly/a5-mobile-ux-tutorial-20261027
+      - highfly/a5-visual-recovery-20261027
     types:
       - completed
   workflow_dispatch:
