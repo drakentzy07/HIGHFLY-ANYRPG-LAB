@@ -53,6 +53,9 @@ namespace HIGHFLY.Mobile
         private TextMeshProUGUI aimInstruction;
         private int aimingSlot = -1;
         private bool groundAimActive;
+        private bool directionalAimActive;
+        private RectTransform directionPreview;
+        private Image directionPreviewImage;
         private bool aimWasCancelled;
         private Vector2 aimTouchStart;
         private TextMeshProUGUI attackText;
@@ -155,7 +158,7 @@ namespace HIGHFLY.Mobile
             if (!canPlay)
             {
                 HighflyTouchInputState.Reset();
-                if (groundAimActive) CancelSkillAim();
+                if (groundAimActive || directionalAimActive) CancelSkillAim();
             }
             backLayer.SetActive(openedNativeWindow != null && openedNativeWindow.IsOpen);
             if (hideDesktopActionBars) HideNative();
@@ -347,9 +350,23 @@ namespace HIGHFLY.Mobile
             var unit = gameManager.PlayerManagerClient.UnitController;
             if (ability == null || unit == null) return;
             var target = ability.GetTargetOptions(unit);
-            if (target == null || !target.RequiresGroundTarget) return;
+            if (target == null) return;
+            if (groundAimActive || directionalAimActive) CancelSkillAim();
 
-            if (groundAimActive) CancelSkillAim();
+            if (!target.RequiresGroundTarget)
+            {
+                directionalAimActive = true;
+                aimingSlot = index;
+                aimTouchStart = screenPosition;
+                if (aimCancelButton != null) aimCancelButton.SetActive(true);
+                if (aimInstruction != null)
+                {
+                    aimInstruction.text = "ARRASTRÁ PARA DIRIGIR  ·  SOLTÁ PARA LANZAR";
+                    aimInstruction.gameObject.SetActive(true);
+                }
+                if (directionPreview != null) directionPreview.gameObject.SetActive(true);
+                return;
+            }
             var manager = unit.CharacterAbilityManager;
             manager.BeginAbility(ability, true);
             if (!manager.WaitingForTarget()) return;
@@ -367,6 +384,36 @@ namespace HIGHFLY.Mobile
 
         public void DragSkillTouch(int index, Vector2 screenPosition)
         {
+            if (directionalAimActive && aimingSlot == index)
+            {
+                Vector2 delta = screenPosition - aimTouchStart;
+                var rect = aimCancelButton != null
+                    ? aimCancelButton.transform as RectTransform : null;
+                bool cancel = rect != null &&
+                    RectTransformUtility.RectangleContainsScreenPoint(rect,screenPosition,null);
+                if (aimInstruction != null)
+                    aimInstruction.text = cancel ? "SOLTÁ PARA CANCELAR" :
+                        "APUNTADO DIRECCIONAL  ·  SOLTÁ PARA LANZAR";
+                if (directionPreview != null)
+                {
+                    Vector2 origin;
+                    var root = gameplayLayer.transform as RectTransform;
+                    if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                        root,aimTouchStart,null,out origin))
+                    {
+                        directionPreview.anchoredPosition = origin;
+                        directionPreview.sizeDelta = new Vector2(
+                            Mathf.Clamp(delta.magnitude/Mathf.Max(.1f,canvas.scaleFactor),
+                                8f,310f),14f);
+                        directionPreview.localRotation =
+                            Quaternion.Euler(0,0,Mathf.Atan2(delta.y,delta.x)*Mathf.Rad2Deg);
+                        if (directionPreviewImage != null)
+                            directionPreviewImage.color = cancel ? C(245,85,109,205) :
+                                C(64,214,255,215);
+                    }
+                }
+                return;
+            }
             if (!groundAimActive || aimingSlot != index) return;
             if (aimCancelButton != null)
             {
@@ -395,6 +442,24 @@ namespace HIGHFLY.Mobile
             if (aimWasCancelled)
             {
                 aimWasCancelled = false;
+                return;
+            }
+            if (directionalAimActive && aimingSlot == index)
+            {
+                Vector2 delta = screenPosition - aimTouchStart;
+                var rect = aimCancelButton != null
+                    ? aimCancelButton.transform as RectTransform : null;
+                bool cancel = rect != null &&
+                    RectTransformUtility.RectangleContainsScreenPoint(rect,screenPosition,null);
+                directionalAimActive = false;
+                aimingSlot = -1;
+                if (directionPreview != null) directionPreview.gameObject.SetActive(false);
+                if (aimCancelButton != null) aimCancelButton.SetActive(false);
+                if (aimInstruction != null) aimInstruction.gameObject.SetActive(false);
+                if (cancel) return;
+                if (delta.sqrMagnitude > 28f*28f)
+                    AimAtWorldDirection(delta);
+                PressSkill(index);
                 return;
             }
             if (!groundAimActive || aimingSlot != index)
@@ -442,17 +507,57 @@ namespace HIGHFLY.Mobile
 
         public void CancelSkillAim()
         {
-            if (!groundAimActive) return;
+            if (!groundAimActive && !directionalAimActive) return;
+            bool wasGround = groundAimActive;
+            directionalAimActive = false;
             groundAimActive = false;
             aimWasCancelled = true;
             aimingSlot = -1;
             HighflyTouchAimState.Active = false;
             if (aimCancelButton != null) aimCancelButton.SetActive(false);
             if (aimInstruction != null) aimInstruction.gameObject.SetActive(false);
-            if (gameManager != null && gameManager.PlayerManagerClient != null &&
+            if (directionPreview != null) directionPreview.gameObject.SetActive(false);
+            if (wasGround && gameManager != null && gameManager.PlayerManagerClient != null &&
                 gameManager.PlayerManagerClient.UnitController != null)
                 gameManager.PlayerManagerClient.UnitController.CharacterAbilityManager
                     .DeactivateTargetingMode();
+        }
+
+        // Align direction with the actual camera and native enemy target.
+        // Does not change hitboxes or invent a cone wider than the underlying spell.
+        private void AimAtWorldDirection(Vector2 drag)
+        {
+            var unit = gameManager.PlayerManagerClient.UnitController;
+            var cam = gameManager.CameraManager != null
+                ? gameManager.CameraManager.ActiveMainCamera : null;
+            if (unit == null || cam == null) return;
+            Vector3 forward=cam.transform.forward;forward.y=0f;
+            Vector3 right=cam.transform.right;right.y=0f;
+            if (forward.sqrMagnitude<.0001f) forward=unit.transform.forward;
+            forward.Normalize(); right.Normalize();
+            Vector3 heading=(right*drag.x+forward*drag.y).normalized;
+            if (heading.sqrMagnitude<.001f) return;
+            unit.UnitMotor.FaceDirection(heading);
+
+            UnitController closest=null;
+            float bestScore=float.MaxValue;
+            foreach(var candidate in FindObjectsByType<UnitController>(FindObjectsSortMode.None))
+            {
+                if (candidate == null || candidate == unit ||
+                    candidate.CharacterStats == null || !candidate.CharacterStats.IsAlive ||
+                    candidate.BaseCharacter == null ||
+                    Faction.RelationWith(candidate,unit.BaseCharacter.Faction) > -1)
+                    continue;
+                var to=candidate.transform.position-unit.transform.position;
+                to.y=0;
+                float distance=to.magnitude;
+                if (distance > 35f || distance < .05f) continue;
+                float alignment=Vector3.Dot(heading,to/distance);
+                if (alignment < .80f) continue;
+                float score=distance + (1f-alignment)*18f;
+                if (score < bestScore){bestScore=score;closest=candidate;}
+            }
+            if(closest != null) unit.SetTarget(closest);
         }
 
         public void PressSkill(int index)
@@ -779,6 +884,15 @@ namespace HIGHFLY.Mobile
             cancelAim.onClick.AddListener(CancelSkillAim);
             aimCancelButton = cancelAim.gameObject;
             aimCancelButton.SetActive(false);
+            var beam = Panel("FURY mobile direction guide",gameplayLayer.transform,
+                C(64,214,255,215));
+            beam.anchorMin = beam.anchorMax = new Vector2(.5f,.5f);
+            beam.pivot = new Vector2(0f,.5f);
+            beam.sizeDelta=new Vector2(8,14);
+            directionPreview=beam;
+            directionPreviewImage=beam.GetComponent<Image>();
+            directionPreviewImage.raycastTarget=false;
+            directionPreview.gameObject.SetActive(false);
             aimInstruction = Label("APUNTÁ CON EL DEDO  ·  SOLTÁ PARA LANZAR",
                 gameplayLayer.transform, new Vector2(.5f,1),
                 new Vector2(0,-91), new Vector2(680,66), 26);

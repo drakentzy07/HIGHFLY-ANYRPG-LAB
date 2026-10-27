@@ -3,7 +3,7 @@ name: A6 - AnyRPG Native Mobile HUD WebGL
 on:
   push:
     branches:
-      - highfly/a6-visual-recovery-20261027
+      - highfly/a6-fury-mobile-evolution-20261027
   workflow_dispatch:
 
 permissions:
