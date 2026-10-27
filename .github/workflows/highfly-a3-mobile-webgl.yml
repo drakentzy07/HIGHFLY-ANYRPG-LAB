@@ -8,6 +8,9 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: anyrpg-a3-mobile-webgl
@@ -17,7 +20,10 @@ jobs:
   mobile-touch-webgl:
     name: Compile A3 native mobile HUD (Unity 6000.3.10f1)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 110
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Check Unity activation is configured
@@ -105,3 +111,94 @@ jobs:
           path: build/WebGL/HIGHFLY-ANYRPG-A3/
           if-no-files-found: error
           retention-days: 14
+
+      # Preserve the exact currently-green A2 Pages site at the repository root.
+      # The A3 test lives under /a3/. A3 must never replace A2 at /.
+      - name: Download existing GREEN A2 Pages backup
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          run-id: 40434832407
+          repository: drakentzy07/HIGHFLY-ANYRPG-LAB
+          github-token: ${{ github.token }}
+          path: a2-pages-backup
+
+      - name: Assemble A2 root plus A3 isolated subpath
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import gzip, tarfile, shutil, os
+
+          backup=Path('a2-pages-backup')
+          archives=list(backup.rglob('*.tar'))
+          if len(archives)!=1: raise SystemExit('Expected exactly one GREEN A2 Pages artifact.tar, got: '+str(archives))
+          root=Path('site-publish')
+          if root.exists(): shutil.rmtree(root)
+          root.mkdir(parents=True)
+          base=root.resolve()
+          # Reject symlinks/traversal instead of blindly extracting a tarball.
+          with tarfile.open(archives[0], 'r:*') as tar:
+              for member in tar:
+                  name=member.name.removeprefix('./')
+                  if not name or name=='.': continue
+                  destination=(root/name).resolve()
+                  if destination!=base and base not in destination.parents:
+                      raise SystemExit('Unsafe path in A2 backup: '+member.name)
+                  if member.isdir():
+                      destination.mkdir(parents=True,exist_ok=True)
+                  elif member.isfile():
+                      destination.parent.mkdir(parents=True,exist_ok=True)
+                      fileobj=tar.extractfile(member)
+                      if fileobj is None: raise SystemExit('Unreadable A2 backup entry: '+member.name)
+                      with fileobj, destination.open('wb') as output: shutil.copyfileobj(fileobj,output)
+                  else:
+                      raise SystemExit('Unsupported A2 backup entry: '+member.name)
+
+          a2index=root/'index.html'
+          if not a2index.exists() or 'HighflyA2MobileBridge' not in a2index.read_text(encoding='utf-8'):
+              raise SystemExit('A2 backup root is not the proven A2 mobile version; refusing Pages deployment')
+          a2build=root/'Build'
+          if not list(a2build.glob('*.wasm')) or not list(a2build.glob('*.data')):
+              raise SystemExit('A2 backup missing uncompressed Unity WebGL payload')
+
+          source=Path('build/WebGL/HIGHFLY-ANYRPG-A3')
+          if not source.joinpath('index.html').exists(): raise SystemExit('A3 build missing')
+          a3=root/'a3'
+          shutil.copytree(source,a3)
+          index=a3/'index.html'
+          html=index.read_text(encoding='utf-8')
+          if 'HIGHFLY A3' not in html: raise SystemExit('Wrong A3 mobile template')
+          build=a3/'Build'
+          for packed in sorted(build.glob('*.gz')):
+              unpacked=packed.with_suffix('')
+              with gzip.open(packed,'rb') as inp,unpacked.open('wb') as out: shutil.copyfileobj(inp,out)
+              packed.unlink()
+          for ext in ['.framework.js.gz','.wasm.gz','.data.gz','.symbols.json.gz']:
+              html=html.replace(ext,ext[:-3])
+          index.write_text(html,encoding='utf-8')
+          for suffix in ('*.loader.js','*.framework.js','*.wasm','*.data'):
+              if not list(build.glob(suffix)): raise SystemExit('A3 missing WebGL file: '+suffix)
+          (root/'.nojekyll').touch()
+          size=sum(p.stat().st_size for p in root.rglob('*') if p.is_file())
+          print('Combined A2 + A3 Pages payload',size,'bytes')
+          if size>900_000_000: raise SystemExit('Site exceeds safe Pages size limit')
+          PY
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload dual-version site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site-publish
+
+      - name: Deploy A2 root and A3 mobile test
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Show A3 mobile test link
+        shell: bash
+        run: echo "A3 mobile test URL https://drakentzy07.github.io/HIGHFLY-ANYRPG-LAB/a3/"
+
