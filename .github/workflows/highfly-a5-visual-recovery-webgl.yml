@@ -3,7 +3,7 @@ name: A5 - AnyRPG Native Mobile HUD WebGL
 on:
   push:
     branches:
-      - highfly/a5-mobile-ux-tutorial-20261027
+      - highfly/a5-visual-recovery-20261027
   workflow_dispatch:
 
 permissions:
