@@ -90,8 +90,10 @@ jobs:
           test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.loader.js' -type f -print -quit)"
           test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.wasm*' -type f -print -quit)"
           test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.data*' -type f -print -quit)"
-          touch "$ROOT/.nojekyll"
-          echo "WebGL artifact verified. No GitHub Pages deployment yet."
+          # .nojekyll is only needed for a Pages deployment, not a CI build artifact.
+          # Unity builder writes build outputs as root inside its container; avoid
+          # modifying them as the unprivileged GitHub Actions runner.
+          echo "WebGL files verified and ready for artifact upload. Pages deployment is separate."
 
       - name: Upload isolated A3 WebGL test artifact
         uses: actions/upload-artifact@v4
