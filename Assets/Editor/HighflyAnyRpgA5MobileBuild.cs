@@ -57,8 +57,15 @@ namespace Highfly.Editor
             // AssetDatabase.ImportPackage(unitypackage, false) is asynchronous in batchmode
             // and can leave the asset database unchanged; unpack the Unity tarball directly.
             const string sdfGuid = "68e6db2ebdc24f95958faec2be5558d6";
-            if (string.IsNullOrEmpty(AssetDatabase.GUIDToAssetPath(sdfGuid)))
+            // Library is restored by CI caching, but Assets/TextMesh Pro is gitignored.
+            // An imported GUID can survive in AssetDatabase after its source file is gone.
+            // Check BOTH the real shader file and its .meta; do not trust the GUID alone.
+            string cachedPath = AssetDatabase.GUIDToAssetPath(sdfGuid);
+            bool needsRestore = string.IsNullOrEmpty(cachedPath)
+                || !File.Exists(cachedPath) || !File.Exists(cachedPath + ".meta");
+            if (needsRestore)
             {
+                Debug.LogWarning("[HIGHFLY A5] TMP shader file missing despite cached GUID; restoring package resources.");
                 string cache = Path.GetFullPath("Library/PackageCache");
                 string pkg = null;
                 if (Directory.Exists(cache))
