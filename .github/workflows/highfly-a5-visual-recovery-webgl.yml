@@ -1,0 +1,109 @@
+name: A5 - AnyRPG Native Mobile HUD WebGL
+
+on:
+  push:
+    branches:
+      - highfly/a5-mobile-ux-tutorial-20261027
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: anyrpg-a5-mobile-webgl
+  cancel-in-progress: true
+
+jobs:
+  mobile-touch-webgl:
+    name: Compile A5 native mobile HUD (Unity 6000.3.10f1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+
+    steps:
+      - name: Check Unity activation is configured
+        shell: bash
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$UNITY_LICENSE" && -z "$UNITY_SERIAL" ]]; then
+            echo "::error::Unity activation missing. Set UNITY_LICENSE (Personal) or UNITY_SERIAL (Pro) in repository Actions secrets."
+            exit 1
+          fi
+          if [[ -z "$UNITY_EMAIL" || -z "$UNITY_PASSWORD" ]]; then
+            echo "::error::Set UNITY_EMAIL and UNITY_PASSWORD as Actions secrets. Never put credentials in source files."
+            exit 1
+          fi
+          echo "Unity activation inputs are present (values not printed)."
+
+      - name: Check out A5 branch with LFS
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 1
+
+      - name: Verify Unity demo scenes and new A5 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'm_EditorVersion: 6000.3.10f1' ProjectSettings/ProjectVersion.txt
+          test -f Assets/AnyRPG/Core/Games/FeaturesDemoGame/Scenes/Game/FeaturesDemoGame/FeaturesDemoGame.unity
+          test -f Assets/AnyRPG/Core/Games/FeaturesDemoGame/Scenes/Game/FeaturesDemoMainMenu/FeaturesDemoMainMenu.unity
+          test -f Assets/AnyRPG/Core/Games/FeaturesDemoGame/Scenes/Content/FeaturesDemoZone/FeaturesDemoZone.unity
+          test -f Assets/HIGHFLY/Mobile/HighflyAnyRpgMobileHud.cs
+          test -f Assets/HIGHFLY/Mobile/HighflyMobileAutoBootstrap.cs
+          test -f Assets/HIGHFLY/Mobile/HighflyTouchMoveArea.cs
+          test -f Assets/HIGHFLY/Mobile/HighflyTouchLookArea.cs
+          test -f Assets/HIGHFLY/Mobile/A5GraphicsRecovery.cs
+          test -f Assets/Editor/HighflyAnyRpgA5MobileBuild.cs
+          test -f Assets/WebGLTemplates/HighflyA5Touch/index.html
+          echo "A5 source and original demo scenes present."
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: anyrpg-a5-6000.3.10f1-webgl-${{ hashFiles('Packages/packages-lock.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: |
+            anyrpg-6000.3.10f1-webgl-
+
+      - name: Compile A5 touch HUD using dedicated mobile WebGL template
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.3.10f1
+          targetPlatform: WebGL
+          buildMethod: Highfly.Editor.AnyRpgA5MobileBuild.BuildWebGL
+          buildsPath: build
+          allowDirtyBuild: true
+
+      - name: Validate downloadable WebGL build
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=build/WebGL/HIGHFLY-ANYRPG-A5
+          test -s "$ROOT/index.html"
+          grep -q "HIGHFLY A5" "$ROOT/index.html"
+          test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.loader.js' -type f -print -quit)"
+          test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.wasm*' -type f -print -quit)"
+          test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.data*' -type f -print -quit)"
+          # .nojekyll is only needed for a Pages deployment, not a CI build artifact.
+          # Unity builder writes build outputs as root inside its container; avoid
+          # modifying them as the unprivileged GitHub Actions runner.
+          echo "WebGL files verified and ready for artifact upload. Pages deployment is separate."
+
+      - name: Upload isolated A5 WebGL test artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-ANYRPG-A5-MOBILE-TEST-WEBGL
+          path: build/WebGL/HIGHFLY-ANYRPG-A5/
+          if-no-files-found: error
+          retention-days: 14
+
