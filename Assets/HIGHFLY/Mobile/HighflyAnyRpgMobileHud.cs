@@ -111,6 +111,12 @@ namespace HIGHFLY.Mobile
 
             SuppressDesktopHelp();
 
+            // FURY 360: AnyRPG's free-rotate mode uses camera direction for
+            // 360-degree movement, unlike its old character-relative strafe mode.
+            var playerController = gameManager.PlayerManagerClient != null
+                ? gameManager.PlayerManagerClient.PlayerController : null;
+            if (playerController != null) playerController.strafeModeActive = false;
+
             if (openedNativeWindow != null && !openedNativeWindow.IsOpen)
                 openedNativeWindow = null;
 
@@ -170,54 +176,104 @@ namespace HIGHFLY.Mobile
         }
 
 
+        private static bool LooksLikeCombat(AbilityProperties ability, UnitController unit)
+        {
+            if (ability == null || ability.IsAutoAttack) return false;
+            string name = (ability.DisplayName ?? "").ToLowerInvariant();
+            // Keep generic traversal, portals and summons out of the 4 combat slots.
+            if (name.Contains("portal") || name.Contains("teleport") ||
+                name.Contains("summon") || name.Contains("dragon") ||
+                name.Contains("gate") || name.Contains("mount") ||
+                name.Contains("recall") || name.Contains("hearth"))
+                return false;
+            var target = ability.GetTargetOptions(unit);
+            return target != null && target.CanCastOnEnemy;
+        }
+
         private void RefreshSlots()
         {
             var unit = gameManager.PlayerManagerClient != null
                 ? gameManager.PlayerManagerClient.UnitController : null;
             if (unit == null || unit.CharacterAbilityManager == null) return;
             var manager = unit.CharacterAbilityManager;
+            var candidates = new List<AbilityProperties>();
 
-            // Enumerate learned native combat abilities. A summon, portal, or
-            // item in the desktop actionbar must never masquerade as S1/S2.
-            var combat = new List<AbilityProperties>();
+            // Prefer original player-equipped action bar, not random alphabetic skills.
+            var slots = Slots();
+            if (slots != null)
+                foreach (var slot in slots)
+                {
+                    var ability = slot != null ? slot.Useable as AbilityProperties : null;
+                    if (LooksLikeCombat(ability, unit) && !candidates.Contains(ability))
+                        candidates.Add(ability);
+                }
             foreach (var ability in manager.AbilityList.Values)
-            {
-                if (ability == null || ability.IsAutoAttack) continue;
-                var target = ability.GetTargetOptions(unit);
-                if (target == null || !target.CanCastOnEnemy ||
-                    target.RequiresGroundTarget) continue;
-                combat.Add(ability);
-            }
-            combat.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName,
-                StringComparison.OrdinalIgnoreCase));
-            for (int i = 0; i < 4; i++)
-            {
-                AbilityProperties ability = i < combat.Count ? combat[i] : null;
-                combatAbilities[i] = ability;
-                skillButtons[i].interactable = ability != null;
-                skillIcons[i].enabled = ability != null && ability.Icon != null;
-                if (skillIcons[i].enabled) skillIcons[i].sprite = ability.Icon;
-                skillTexts[i].text = ability != null ? "S" + (i + 1) : "+";
+                if (LooksLikeCombat(ability, unit) && !candidates.Contains(ability))
+                    candidates.Add(ability);
 
+            // On the stock Features Demo some learned starter skills use self/area
+            // targets. Include the player's non-travel active slots as a fallback
+            // rather than erasing the entire HUD like the previous A5 build.
+            if (candidates.Count < 4 && slots != null)
+                foreach (var slot in slots)
+                {
+                    var ability = slot != null ? slot.Useable as AbilityProperties : null;
+                    if (ability != null && !ability.IsAutoAttack &&
+                        !IsTravelOrSummon(ability) && !candidates.Contains(ability))
+                        candidates.Add(ability);
+                }
+            if (candidates.Count < 4)
+                foreach (var ability in manager.AbilityList.Values)
+                    if (ability != null && !ability.IsAutoAttack &&
+                        !IsTravelOrSummon(ability) && !candidates.Contains(ability))
+                        candidates.Add(ability);
+
+            for (int index = 0; index < 4; index++)
+            {
+                var ability = index < candidates.Count ? candidates[index] : null;
+                combatAbilities[index] = ability;
+                skillButtons[index].interactable = ability != null;
+                skillIcons[index].enabled = ability != null && ability.Icon != null;
+                if (skillIcons[index].enabled) skillIcons[index].sprite = ability.Icon;
+                skillTexts[index].text = ability != null ? "S" + (index + 1) : "+";
                 float cooldown = 0f;
-                if (ability != null &&
-                    manager.AbilityCoolDownDictionary.TryGetValue(ability.DisplayName,
-                        out var cd) && cd.InitialCoolDown > .01f)
+                if (ability != null && manager.AbilityCoolDownDictionary.TryGetValue(
+                    ability.DisplayName, out var cd) && cd.InitialCoolDown > .01f)
                     cooldown = cd.RemainingCoolDown / cd.InitialCoolDown;
-                skillCooldowns[i].fillAmount = Mathf.Clamp01(cooldown);
+                skillCooldowns[index].fillAmount = Mathf.Clamp01(cooldown);
             }
 
+            // Stock demo characters may load with the unarmed attack unset.
+            // Use the AnyRPG unit profile default or a learned auto-attack.
+            if (manager.AutoAttackAbility == null)
+                manager.LearnDefaultAutoAttackAbility();
+            if (manager.AutoAttackAbility == null)
+                foreach (var learned in manager.AbilityList.Values)
+                    if (learned != null && learned.IsAutoAttack)
+                    {
+                        manager.SetAutoAttackAbility(learned);
+                        break;
+                    }
             var basic = manager.AutoAttackAbility;
-            attackButton.interactable = basic != null;
+            attackButton.interactable = true; // always allow feedback on press
             attackIcon.enabled = basic != null && basic.Icon != null;
             if (attackIcon.enabled) attackIcon.sprite = basic.Icon;
-            attackText.text = "ATK";
+            attackText.text = basic != null ? "ATK" : "ATK?";
+        }
+
+        private static bool IsTravelOrSummon(AbilityProperties ability)
+        {
+            string name = (ability.DisplayName ?? "").ToLowerInvariant();
+            return name.Contains("portal") || name.Contains("teleport") ||
+                name.Contains("summon") || name.Contains("dragon") ||
+                name.Contains("gate") || name.Contains("mount") ||
+                name.Contains("recall") || name.Contains("hearth");
         }
 
         public void PressSkill(int index)
         {
             if (!GameplayAvailable() || index < 0 || index >= 4) return;
-            AbilityProperties ability = combatAbilities[index];
+            var ability = combatAbilities[index];
             if (ability == null) return;
             var unit = gameManager.PlayerManagerClient.UnitController;
             unit.CharacterAbilityManager.BeginAbility(ability, true);
@@ -227,34 +283,44 @@ namespace HIGHFLY.Mobile
         {
             if (!GameplayAvailable()) return;
             var unit = gameManager.PlayerManagerClient.UnitController;
-            if (unit.CharacterAbilityManager.AutoAttackAbility == null)
+            var manager = unit.CharacterAbilityManager;
+            if (manager.AutoAttackAbility == null)
+                manager.LearnDefaultAutoAttackAbility();
+            if (manager.AutoAttackAbility == null)
             {
-                Debug.LogWarning("[HIGHFLY A5] ATK unavailable: this character has no native basic attack equipped.");
+                Debug.LogWarning("[HIGHFLY FURY] El personaje no tiene un ataque básico asignado; revisar el perfil o el arma.");
                 return;
             }
-            // Soft-target only enemies. AnyRPG controls all actual damage,
-            // targeting validity, animation and cooldowns.
-            if (unit.Target == null)
+            UnitController enemy = unit.Target as UnitController;
+            if (enemy == null || enemy.CharacterStats == null || !enemy.CharacterStats.IsAlive ||
+                Faction.RelationWith(enemy, unit.BaseCharacter.Faction) > -1)
             {
-                UnitController nearest = null;
-                float nearestSq = 12f * 12f;
+                enemy = null;
+                float bestSq = 12f * 12f;
                 foreach (var candidate in FindObjectsByType<UnitController>(FindObjectsSortMode.None))
                 {
                     if (candidate == null || candidate == unit ||
-                        candidate.CharacterStats == null ||
-                        !candidate.CharacterStats.IsAlive ||
+                        candidate.CharacterStats == null || !candidate.CharacterStats.IsAlive ||
+                        candidate.BaseCharacter == null ||
                         Faction.RelationWith(candidate, unit.BaseCharacter.Faction) > -1)
                         continue;
                     Vector3 delta = candidate.transform.position - unit.transform.position;
                     float sq = delta.sqrMagnitude;
-                    if (sq > nearestSq || Vector3.Dot(unit.transform.forward, delta.normalized) < -.15f)
+                    if (sq > bestSq || Vector3.Dot(unit.transform.forward, delta.normalized) < -.25f)
                         continue;
-                    nearest = candidate;
-                    nearestSq = sq;
+                    enemy = candidate;
+                    bestSq = sq;
                 }
-                if (nearest != null) unit.SetTarget(nearest);
             }
-            unit.CharacterAbilityManager.AttemptAutoAttack(true);
+            if (enemy != null)
+            {
+                unit.SetTarget(enemy);
+                unit.CharacterCombat.Attack(enemy, true);
+            }
+            else
+            {
+                Debug.Log("[HIGHFLY FURY] No hay enemigo válido cerca: AnyRPG no ataca NPCs amistosos.");
+            }
         }
 
         private bool GameplayAvailable()
@@ -438,9 +504,9 @@ namespace HIGHFLY.Mobile
             var jump = UiButton("SALTO", gameplayLayer.transform, new Vector2(.5f,0),
                 new Vector2(-201,146), new Vector2(111,111), C(45,93,140,174));
             jump.onClick.AddListener(HighflyTouchInputState.TapJump);
-            var roll = UiButton("RODAR", gameplayLayer.transform, new Vector2(.5f,0),
+            var dash = UiButton("DASH", gameplayLayer.transform, new Vector2(.5f,0),
                 new Vector2(-68,146), new Vector2(111,111), C(45,93,140,174));
-            roll.onClick.AddListener(HighflyTouchInputState.TapRoll);
+            dash.onClick.AddListener(HighflyTouchInputState.TapDash);
 
             var interact = UiButton("USAR", gameplayLayer.transform,
                 new Vector2(1,0), new Vector2(-365,90), new Vector2(108,85),
@@ -521,7 +587,7 @@ namespace HIGHFLY.Mobile
                 new Vector2(0,-70), new Vector2(680,65), 34);
             Label("JOYSTICK IZQUIERDO · Caminar\n" +
                   "LADO DERECHO · Deslizá para mover la cámara\n" +
-                  "SALTO / RODAR · Movimiento\n" +
+                  "SALTO / DASH · Movimiento\n" +
                   "ATK / S1–S4 · Combate y habilidades\n" +
                   "••• · Inventario, personaje y opciones",
                   card, new Vector2(.5f,.5f), new Vector2(0,4),
