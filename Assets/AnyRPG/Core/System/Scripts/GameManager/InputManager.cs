@@ -766,6 +766,9 @@ namespace AnyRPG {
             RegisterMouseActions();
             RegisterGamepadActions();
             RegisterKeyPresses();
+            // HIGHFLY mobile: use the original analog/keypress pipeline, without
+            // relying on Unity WebGL to expose the on-screen virtual gamepad.
+            HIGHFLY.Mobile.HighflyTouchInputState.ApplyTo(this);
 
         }
 
