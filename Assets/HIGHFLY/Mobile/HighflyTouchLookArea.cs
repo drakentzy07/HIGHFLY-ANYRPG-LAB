@@ -29,7 +29,7 @@ namespace HIGHFLY.Mobile
             previousPosition = eventData.position;
             // Convert screen displacement into a bounded camera analogue pulse.
             // No time-based multiplication: stable across varying WebGL FPS.
-            float scale = sensitivity * 2.6f/Mathf.Max(1f, Screen.height);
+            float scale = sensitivity * 60f / Mathf.Max(1f, Screen.height);
             Vector2 look = Vector2.ClampMagnitude(delta * scale, 1f);
             if (invertHorizontal) look.x = -look.x;
             if (invertVertical) look.y = -look.y;
