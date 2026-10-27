@@ -17,7 +17,7 @@ namespace HIGHFLY.Mobile
         IPointerDownHandler, IDragHandler, IPointerUpHandler
     {
         [SerializeField, InputControl(layout = "Vector2")]
-        private string inputControlPath = "<Gamepad>/rightStick";
+        private string inputControlPath = "<XInputController>/rightStick";
 
         [SerializeField, Range(0.05f, 2f)] private float sensitivity = 0.38f;
         [SerializeField] private bool invertHorizontal;
