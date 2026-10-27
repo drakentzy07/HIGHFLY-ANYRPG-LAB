@@ -57,7 +57,7 @@ jobs:
           test -f Assets/HIGHFLY/Mobile/HighflyMobileAutoBootstrap.cs
           test -f Assets/HIGHFLY/Mobile/HighflyTouchMoveArea.cs
           test -f Assets/HIGHFLY/Mobile/HighflyTouchLookArea.cs
-          test -f Assets/HIGHFLY/Mobile/A6GraphicsRecovery.cs
+          test -f Assets/HIGHFLY/Mobile/A5GraphicsRecovery.cs
           test -f Assets/Editor/HighflyAnyRpgA6MobileBuild.cs
           test -f Assets/WebGLTemplates/HighflyA6Touch/index.html
           echo "A6 source and original demo scenes present."
