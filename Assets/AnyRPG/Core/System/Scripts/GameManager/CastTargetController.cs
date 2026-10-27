@@ -46,7 +46,10 @@ namespace AnyRPG {
             // HIGHFLY Android: native circle follows the independent skill pointer.
             // Preserve original mouse/gamepad aiming on desktop and other scenes.
             if (HIGHFLY.Mobile.HighflyTouchAimState.Active) {
-                FollowVector(HIGHFLY.Mobile.HighflyTouchAimState.ScreenPosition);
+                // In A6 the target is a validated terrain point computed from
+                // the hunter's position, NOT a screen point near the skill icon.
+                transform.position = HIGHFLY.Mobile.HighflyTouchAimState.WorldPosition + Vector3.up * .12f;
+                if (meshRenderer != null) meshRenderer.enabled = true;
                 return;
             }
             if (controlsManager.GamepadModeActive == true) {
