@@ -457,10 +457,10 @@ namespace HIGHFLY.Mobile
             Place(card, new Vector2(.5f,.5f), Vector2.zero, new Vector2(730,525));
             Label("HIGHFLY · GUÍA TÁCTIL", card, new Vector2(.5f,1),
                 new Vector2(0,-70), new Vector2(680,65), 34);
-            Label("JOYSTICK IZQUIERDO · Caminar\\n" +
-                  "LADO DERECHO · Deslizá para mover la cámara\\n" +
-                  "SALTO / RODAR · Movimiento\\n" +
-                  "ATK / S1–S4 · Combate y habilidades\\n" +
+            Label("JOYSTICK IZQUIERDO · Caminar\n" +
+                  "LADO DERECHO · Deslizá para mover la cámara\n" +
+                  "SALTO / RODAR · Movimiento\n" +
+                  "ATK / S1–S4 · Combate y habilidades\n" +
                   "••• · Inventario, personaje y opciones",
                   card, new Vector2(.5f,.5f), new Vector2(0,4),
                   new Vector2(678,275), 26);
