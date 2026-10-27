@@ -365,11 +365,13 @@ namespace AnyRPG {
                     }
                     unitController.UnitAnimator.SetMoving(true);
                     unitController.UnitAnimator.SetVelocityFromLocal(intendedLocalMoveVelocity, currentMovementData.RotateModelMode);
-                }/* else {
-                    unitController.MyCharacterAnimator.SetMoving(false);
-                    unitController.MyCharacterAnimator.SetStrafing(false);
-                    unitController.MyCharacterAnimator.SetVelocity(currentMoveVelocity, rotateModel);
-                }*/
+                } else {
+                    // Reset the actual AnyRPG animation parameters after stopping.
+                    // Stale locomotion parameters previously survived until state exit.
+                    unitController.UnitAnimator.SetMoving(false);
+                    unitController.UnitAnimator.SetStrafing(false);
+                    unitController.UnitAnimator.SetVelocityFromLocal(Vector3.zero, currentMovementData.RotateModelMode);
+                }
                 AnimatorTurnUpdate();
             }
         }
@@ -383,8 +385,14 @@ namespace AnyRPG {
         protected void LateGlobalStateUpdate(double timeInterval) {
 
             if (unitController.CharacterStats.IsAlive == true) {
-                if ((currentMovementData.FaceCameraDirection == true)
-                    || (currentMovementData.RotateModelMode == false && currentMovementData.RightAnalogHorizontal != 0f)) {
+                // A6: camera swipes must orbit independently from the avatar.
+                // The previous fallback forced body facing on every right-finger swipe,
+                // conflicting with locomotion and full-body animation rotation.
+                bool touchOrbit = unitController.UnitControllerMode == UnitControllerMode.Player
+                    && HIGHFLY.Mobile.HighflyTouchInputState.Enabled;
+                if (currentMovementData.FaceCameraDirection == true
+                    || (!touchOrbit && currentMovementData.RotateModelMode == false
+                        && currentMovementData.RightAnalogHorizontal != 0f)) {
 
                     unitController.UnitMotor.FaceDirection(new Vector3(currentMovementData.CameraWantedDirection.x, 0, currentMovementData.CameraWantedDirection.z));
                 }

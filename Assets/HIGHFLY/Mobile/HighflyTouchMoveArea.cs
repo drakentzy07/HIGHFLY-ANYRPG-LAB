@@ -76,7 +76,9 @@ namespace HIGHFLY.Mobile
 
         public static void Look(Vector2 value)
         {
-            if (Enabled) lookImpulse = Vector2.ClampMagnitude(lookImpulse + value, 1f);
+            if (Enabled) lookImpulse = new Vector2(
+                Mathf.Clamp(lookImpulse.x + value.x, -2f, 2f),
+                Mathf.Clamp(lookImpulse.y + value.y, -2f, 2f));
         }
 
         public static void TapJump()

@@ -37,6 +37,18 @@ namespace HIGHFLY.Mobile
         private Image[] skillIcons = new Image[4];
         private Image[] skillCooldowns = new Image[4];
         private Button[] skillButtons = new Button[4];
+        private RectTransform[] skillTransforms = new RectTransform[4];
+        private RectTransform jumpTransform, dashTransform, interactTransform, attackTransform, moveTransform;
+        private GameObject customizationPanel;
+        private TextMeshProUGUI[] assignmentLabels = new TextMeshProUGUI[4];
+        private string[] equippedNames = new string[4];
+        private const string LayoutKey = "HIGHFLY_A6_HUD_LAYOUT";
+        private const string ScaleKey = "HIGHFLY_A6_HUD_SCALE";
+        private const string OpacityKey = "HIGHFLY_A6_HUD_OPACITY";
+        private const string SkillKey = "HIGHFLY_A6_EQUIPPED_";
+        private int layoutPreset = 1;
+        private float uiScale = 1f;
+        private float uiOpacity = 1f;
         private GameObject aimCancelButton;
         private TextMeshProUGUI aimInstruction;
         private int aimingSlot = -1;
@@ -75,6 +87,11 @@ namespace HIGHFLY.Mobile
             instance = this;
             DontDestroyOnLoad(gameObject);
             tutorialDismissed = PlayerPrefs.GetInt(TutorialSeenKey, 0) == 1;
+            layoutPreset = PlayerPrefs.GetInt(LayoutKey, 1);
+            uiScale = Mathf.Clamp(PlayerPrefs.GetFloat(ScaleKey, 1f), .85f, 1.35f);
+            uiOpacity = Mathf.Clamp(PlayerPrefs.GetFloat(OpacityKey, 1f), .45f, 1f);
+            for (int i = 0; i < 4; i++)
+                equippedNames[i] = PlayerPrefs.GetString(SkillKey + i, "");
             Build();
             tutorialLayer.SetActive(false);
             gameplayLayer.SetActive(false); // do not synthesize devices in login/character creator
@@ -244,11 +261,32 @@ namespace HIGHFLY.Mobile
                 if (LooksLikeCombat(ability, unit) && !candidates.Contains(ability))
                     candidates.Add(ability);
 
-            // IMPORTANT: empty combat slots stay empty. Never backfill S1–S4
-            // with professions, travel abilities or noncombat utility.
+            // Explicitly equipped abilities take precedence across reloads;
+            // never backfill with gathering, crafting or travel skills.
+            var assigned = new AbilityProperties[4];
+            var used = new HashSet<AbilityProperties>();
+            for (int i = 0; i < assigned.Length; i++)
+                if (!string.IsNullOrEmpty(equippedNames[i]))
+                    foreach (var candidate in candidates)
+                        if (candidate.ResourceName == equippedNames[i] && !used.Contains(candidate))
+                        {
+                            assigned[i] = candidate;
+                            used.Add(candidate);
+                            break;
+                        }
+            int nextCandidate = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                if (assigned[i] != null) continue;
+                while (nextCandidate < candidates.Count && used.Contains(candidates[nextCandidate]))
+                    nextCandidate++;
+                if (nextCandidate >= candidates.Count) break;
+                assigned[i] = candidates[nextCandidate++];
+                used.Add(assigned[i]);
+            }
             for (int index = 0; index < 4; index++)
             {
-                var ability = index < candidates.Count ? candidates[index] : null;
+                var ability = assigned[index];
                 combatAbilities[index] = ability;
                 skillButtons[index].interactable = ability != null;
                 skillIcons[index].enabled = ability != null && ability.Icon != null;
@@ -424,6 +462,36 @@ namespace HIGHFLY.Mobile
             if (ability == null) return;
             var unit = gameManager.PlayerManagerClient.UnitController;
             unit.CharacterAbilityManager.BeginAbility(ability, true);
+        }
+
+        public void CycleEquippedSkill(int slotIndex)
+        {
+            if (slotIndex < 0 || slotIndex > 3 || gameManager == null ||
+                gameManager.PlayerManagerClient == null) return;
+            var unit = gameManager.PlayerManagerClient.UnitController;
+            if (unit == null || unit.CharacterAbilityManager == null) return;
+            var list = new List<AbilityProperties>();
+            foreach (var skill in unit.CharacterAbilityManager.AbilityList.Values)
+                if (LooksLikeCombat(skill,unit)) list.Add(skill);
+            list.Sort((a,b) => string.Compare(a.DisplayName,b.DisplayName,StringComparison.Ordinal));
+            if (list.Count == 0) return;
+            int currentIndex = list.FindIndex(a => a.ResourceName == equippedNames[slotIndex]);
+            for (int offset = 1; offset <= list.Count; offset++)
+            {
+                var next = list[(currentIndex+offset+list.Count)%list.Count];
+                bool alreadyUsed = false;
+                for (int i = 0; i < 4; i++)
+                    if (i != slotIndex && equippedNames[i] == next.ResourceName)
+                        alreadyUsed = true;
+                if (alreadyUsed) continue;
+                equippedNames[slotIndex] = next.ResourceName;
+                PlayerPrefs.SetString(SkillKey + slotIndex,next.ResourceName);
+                PlayerPrefs.Save();
+                if (assignmentLabels[slotIndex] != null)
+                    assignmentLabels[slotIndex].text = "S"+(slotIndex+1)+" · "+next.DisplayName;
+                RefreshSlots();
+                return;
+            }
         }
 
         public void PressAttack()
@@ -638,8 +706,9 @@ namespace HIGHFLY.Mobile
 
             // AnyRPG multiplies camera right-stick input by this preference.
             // An unset value is zero: previously no swipe could rotate the camera.
-            if (PlayerPrefs.GetFloat("JoystickLookSpeed", 0f) <= 0.01f)
-                PlayerPrefs.SetFloat("JoystickLookSpeed", 1.6f);
+            // Upgrade old slow A5 default but respect deliberate user settings.
+            if (PlayerPrefs.GetFloat("JoystickLookSpeed", 0f) <= 1.61f)
+                PlayerPrefs.SetFloat("JoystickLookSpeed", 2.85f);
 
             gameplayLayer = Layer("Gameplay", canvasGo.transform);
             // Create camera surface FIRST: action buttons added later win hit testing.
@@ -648,7 +717,8 @@ namespace HIGHFLY.Mobile
             look.gameObject.AddComponent<HighflyTouchLookArea>();
 
             var move = Panel("FURY 360 joystick", gameplayLayer.transform, C(8,25,49,154));
-            Place(move, new Vector2(0,0), new Vector2(212,205), new Vector2(330,330));
+            Place(move, new Vector2(0,0), new Vector2(216,198), new Vector2(342,342));
+            moveTransform = move;
             move.GetComponent<Image>().sprite = SoftDisc();
             var outerRing = move.gameObject.AddComponent<Outline>();
             outerRing.effectColor = C(59,205,255,115);
@@ -668,15 +738,18 @@ namespace HIGHFLY.Mobile
             var jump = UiButton("SALTO ×2", gameplayLayer.transform, Vector2.right,
                 new Vector2(-765,119), new Vector2(120,120), C(27,82,129,240));
             jump.gameObject.AddComponent<HighflyImmediatePress>().IsJump = true;
+            jumpTransform = jump.transform as RectTransform;
             dashButton = UiButton("DASH", gameplayLayer.transform, Vector2.right,
                 new Vector2(-630,119), new Vector2(120,120), C(56,50,130,240));
             dashLabel = dashButton.GetComponentInChildren<TextMeshProUGUI>();
+            dashTransform = dashButton.transform as RectTransform;
             dashButton.gameObject.AddComponent<HighflyImmediatePress>().IsJump = false;
 
             var interact = UiButton("USAR", gameplayLayer.transform,
                 new Vector2(1,0), new Vector2(-382,83), new Vector2(108,85),
                 C(18,73,102,233));
             interact.onClick.AddListener(PressInteract);
+            interactTransform = interact.transform as RectTransform;
 
             // Arced four skills; center-right under the camera swipe surface.
             Vector2[] positions = {
@@ -693,6 +766,7 @@ namespace HIGHFLY.Mobile
                 pointer.Hud = this;
                 pointer.Slot = slot;
                 skillButtons[i] = button;
+                skillTransforms[i] = button.transform as RectTransform;
                 skillTexts[i] = button.GetComponentInChildren<TextMeshProUGUI>();
                 skillIcons[i] = InnerIcon(button.transform);
                 skillCooldowns[i] = Cooldown(button.transform);
@@ -714,6 +788,7 @@ namespace HIGHFLY.Mobile
                 new Vector2(1,0), new Vector2(-133,140),
                 new Vector2(156,156), C(20,104,168,247));
             attackButton.onClick.AddListener(PressAttack);
+            attackTransform = attackButton.transform as RectTransform;
             attackText = attackButton.GetComponentInChildren<TextMeshProUGUI>();
             attackIcon = InnerIcon(attackButton.transform);
 
@@ -729,9 +804,9 @@ namespace HIGHFLY.Mobile
             var frameEdge = frame.gameObject.AddComponent<Outline>();
             frameEdge.effectColor = C(61,179,230,210);
             frameEdge.effectDistance = new Vector2(2,-2);
-            Place(frame, new Vector2(.5f,.5f), Vector2.zero, new Vector2(760,690));
+            Place(frame, new Vector2(.5f,.5f), Vector2.zero, new Vector2(935,790));
             Label("HIGHFLY  ·  MENÚ", frame, new Vector2(.5f,1),
-                new Vector2(0,-52), new Vector2(650,75), 40);
+                new Vector2(0,-58), new Vector2(800,75), 43);
             menuFeedbackText = Label("", frame, new Vector2(.5f,0),
                 new Vector2(0,10), new Vector2(690,55), 18);
             string[] items = {"Personaje","Inventario","Habilidades","Misiones",
@@ -742,16 +817,22 @@ namespace HIGHFLY.Mobile
             {
                 string id = targets[i];
                 var button = UiButton(items[i], frame, new Vector2(.5f,.5f),
-                    new Vector2(i%2==0 ? -185 : 185, 195 - (i/2)*120),
-                    new Vector2(320,96), C(36,76,119,255));
+                    new Vector2(i%2==0 ? -216 : 216, 225 - (i/2)*122),
+                    new Vector2(387,102), C(36,76,119,255));
                 button.onClick.AddListener(() => OpenNative(id));
             }
             var closeMenu = UiButton("CERRAR", frame, new Vector2(.5f,0),
                 new Vector2(0,62), new Vector2(255,78), C(88,54,102,255));
             closeMenu.onClick.AddListener(ToggleMenu);
+            var editHud = UiButton("EDITAR HUD / SENSIBILIDAD", frame,
+                new Vector2(.5f,0), new Vector2(0,177),
+                new Vector2(425,74), C(12,100,147,255));
+            editHud.onClick.AddListener(() => customizationPanel.SetActive(true));
             var reopenGuide = UiButton("GUÍA TÁCTIL", frame, new Vector2(.5f,0),
-                new Vector2(0,153), new Vector2(228,64), C(29,97,133,230));
+                new Vector2(0,264), new Vector2(228,64), C(29,97,133,230));
             reopenGuide.onClick.AddListener(ReopenMobileTutorial);
+            BuildCustomization(menuLayer.transform);
+            ApplyHudPreset();
             menuLayer.SetActive(false);
 
             backLayer = Layer("Back from native AnyRPG window", canvasGo.transform);
@@ -779,6 +860,121 @@ namespace HIGHFLY.Mobile
                 new Vector2(390,83), C(26,121,147,255));
             start.onClick.AddListener(DismissMobileTutorial);
             tutorialLayer.SetActive(false);
+        }
+
+
+        private void ApplyHudPreset()
+        {
+            // Base layout preserves the full S23 landscape controls. MOBA
+            // gathers main actions around the right thumb without overlap.
+            Vector2[] offsets = layoutPreset == 1
+                ? new [] {
+                    new Vector2(-560,217), new Vector2(-475,352),
+                    new Vector2(-337,409), new Vector2(-213,342)
+                  }
+                : new [] {
+                    new Vector2(-531,227), new Vector2(-411,308),
+                    new Vector2(-283,336), new Vector2(-167,280)
+                  };
+            for (int i=0; i<4; i++)
+                if (skillTransforms[i] != null) skillTransforms[i].anchoredPosition=offsets[i];
+            if (jumpTransform != null)
+                jumpTransform.anchoredPosition = layoutPreset == 1
+                    ? new Vector2(-756,104) : new Vector2(-765,119);
+            if (dashTransform != null)
+                dashTransform.anchoredPosition = layoutPreset == 1
+                    ? new Vector2(-629,104) : new Vector2(-630,119);
+            if (interactTransform != null)
+                interactTransform.anchoredPosition = layoutPreset == 1
+                    ? new Vector2(-418,100) : new Vector2(-382,83);
+            if (attackTransform != null)
+                attackTransform.anchoredPosition = layoutPreset == 1
+                    ? new Vector2(-144,126) : new Vector2(-133,140);
+            if (moveTransform != null)
+                moveTransform.localScale = Vector3.one * uiScale;
+            foreach (var t in skillTransforms)
+                if (t != null) t.localScale=Vector3.one*uiScale;
+            foreach (var t in new [] {jumpTransform,dashTransform,interactTransform,attackTransform})
+                if (t != null) t.localScale=Vector3.one*uiScale;
+            foreach (var t in new [] {moveTransform,jumpTransform,dashTransform,interactTransform,attackTransform})
+                SetOpacity(t);
+            foreach (var t in skillTransforms) SetOpacity(t);
+        }
+
+        private void SetOpacity(RectTransform rect)
+        {
+            if (rect == null) return;
+            var image = rect.GetComponent<Image>();
+            if (image == null) return;
+            var color=image.color;
+            color.a=Mathf.Min(1f,uiOpacity);
+            image.color=color;
+        }
+
+        private void BuildCustomization(Transform parent)
+        {
+            var panel = Panel("A6 HUD customizer", parent, C(5,18,40,253));
+            customizationPanel=panel.gameObject;
+            Stretch(panel,new Vector2(0,0),Vector2.one);
+            Label("HIGHFLY · CONTROLES MÓVILES",panel,
+                new Vector2(.5f,1f),new Vector2(0,-95),new Vector2(1250,70),40);
+            Label("CÁMARA HORIZONTAL",panel,new Vector2(.5f,.5f),
+                new Vector2(-370,245),new Vector2(460,50),27);
+            CreateSettingSlider(panel,new Vector2(220,245),
+                PlayerPrefs.GetFloat("HIGHFLY_A6_CAMERA_HORIZONTAL",1.25f),
+                .45f,2.7f,v=>PlayerPrefs.SetFloat("HIGHFLY_A6_CAMERA_HORIZONTAL",v));
+            Label("CÁMARA VERTICAL",panel,new Vector2(.5f,.5f),
+                new Vector2(-370,155),new Vector2(460,50),27);
+            CreateSettingSlider(panel,new Vector2(220,155),
+                PlayerPrefs.GetFloat("HIGHFLY_A6_CAMERA_VERTICAL",1.10f),
+                .45f,2.7f,v=>PlayerPrefs.SetFloat("HIGHFLY_A6_CAMERA_VERTICAL",v));
+            Label("TAMAÑO DE HUD",panel,new Vector2(.5f,.5f),
+                new Vector2(-370,65),new Vector2(460,50),27);
+            CreateSettingSlider(panel,new Vector2(220,65),uiScale,.85f,1.35f,
+                v=>{uiScale=v;PlayerPrefs.SetFloat(ScaleKey,v);ApplyHudPreset();});
+            Label("TRANSPARENCIA",panel,new Vector2(.5f,.5f),
+                new Vector2(-370,-25),new Vector2(460,50),27);
+            CreateSettingSlider(panel,new Vector2(220,-25),uiOpacity,.45f,1f,
+                v=>{uiOpacity=v;PlayerPrefs.SetFloat(OpacityKey,v);ApplyHudPreset();});
+            var moba=UiButton("DISTRIBUCIÓN MOBA",panel,
+                new Vector2(.5f,.5f),new Vector2(-240,-136),
+                new Vector2(380,72),C(16,104,157,255));
+            moba.onClick.AddListener(()=>{layoutPreset=1;PlayerPrefs.SetInt(LayoutKey,1);ApplyHudPreset();});
+            var classic=UiButton("DISTRIBUCIÓN CLÁSICA",panel,
+                new Vector2(.5f,.5f),new Vector2(240,-136),
+                new Vector2(380,72),C(52,70,125,255));
+            classic.onClick.AddListener(()=>{layoutPreset=0;PlayerPrefs.SetInt(LayoutKey,0);ApplyHudPreset();});
+            for(int i=0;i<4;i++)
+            {
+                int index=i;
+                var button=UiButton("S"+(i+1)+" · CAMBIAR SKILL",panel,
+                    new Vector2(.5f,.5f),new Vector2(-630+i*418,-264),
+                    new Vector2(380,75),C(24,77,111,255));
+                assignmentLabels[i]=button.GetComponentInChildren<TextMeshProUGUI>();
+                button.onClick.AddListener(()=>CycleEquippedSkill(index));
+            }
+            var done=UiButton("GUARDAR Y VOLVER",panel,new Vector2(.5f,.5f),
+                new Vector2(0,-382),new Vector2(450,76),C(13,120,145,255));
+            done.onClick.AddListener(()=>{PlayerPrefs.Save();customizationPanel.SetActive(false);});
+            customizationPanel.SetActive(false);
+        }
+
+        private static void CreateSettingSlider(Transform parent, Vector2 pos,
+            float value,float min,float max, UnityEngine.Events.UnityAction<float> onChange)
+        {
+            var track=Panel("A6 slider",parent,C(31,63,92,255));
+            Place(track,new Vector2(.5f,.5f),pos,new Vector2(690,25));
+            var fill=Panel("Fill",track,C(41,193,225,255));
+            Stretch(fill,Vector2.zero,Vector2.one);
+            var handle=Panel("Touch handle",track,C(207,244,255,255));
+            Place(handle,new Vector2(.5f,.5f),Vector2.zero,new Vector2(62,66));
+            var slider=track.gameObject.AddComponent<Slider>();
+            slider.targetGraphic=handle.GetComponent<Image>();
+            slider.fillRect=fill;
+            slider.handleRect=handle;
+            slider.minValue=min;slider.maxValue=max;
+            slider.value=value;
+            slider.onValueChanged.AddListener(onChange);
         }
 
         private static Sprite SoftDisc()

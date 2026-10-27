@@ -9,7 +9,9 @@ namespace HIGHFLY.Mobile
     public sealed class HighflyTouchLookArea : MonoBehaviour,
         IPointerDownHandler, IDragHandler, IPointerUpHandler, ICancelHandler
     {
-        [SerializeField, Range(.05f,2f)] private float sensitivity = .55f;
+        [SerializeField, Range(.05f,3f)] private float sensitivity = 1.35f;
+        private const string HorizontalKey = "HIGHFLY_A6_CAMERA_HORIZONTAL";
+        private const string VerticalKey = "HIGHFLY_A6_CAMERA_VERTICAL";
         [SerializeField] private bool invertHorizontal;
         [SerializeField] private bool invertVertical;
         private int activePointer = int.MinValue;
@@ -29,8 +31,12 @@ namespace HIGHFLY.Mobile
             previousPosition = eventData.position;
             // Convert screen displacement into a bounded camera analogue pulse.
             // No time-based multiplication: stable across varying WebGL FPS.
+            // Independent saved axis sensitivities: no FPS multiplication
+            // and no radial clipping that discards fast diagonal swipes.
             float scale = sensitivity * 60f / Mathf.Max(1f, Screen.height);
-            Vector2 look = Vector2.ClampMagnitude(delta * scale, 1f);
+            Vector2 look = new Vector2(
+                Mathf.Clamp(delta.x * scale * PlayerPrefs.GetFloat(HorizontalKey,1.25f),-2.0f,2.0f),
+                Mathf.Clamp(delta.y * scale * PlayerPrefs.GetFloat(VerticalKey,1.10f),-2.0f,2.0f));
             if (invertHorizontal) look.x = -look.x;
             if (invertVertical) look.y = -look.y;
             HighflyTouchInputState.Look(look);

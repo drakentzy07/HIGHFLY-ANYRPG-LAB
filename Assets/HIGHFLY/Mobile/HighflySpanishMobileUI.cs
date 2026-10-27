@@ -260,14 +260,17 @@ namespace HIGHFLY.Mobile
             if (enlarged != null)
             {
                 originalScale = enlarged.localScale;
-                float factor = premiumModal ? 1.24f : 1.06f;
+                // More of the landscape surface for desktop-authored AnyRPG UI.
+                bool largeRpg = window is InventoryPanel || window is CharacterPanel ||
+                    window is QuestLogPanel || window is CraftingPanel;
+                float factor = premiumModal ? 1.55f : largeRpg ? 1.78f : 1.48f;
                 float width = Mathf.Abs(enlarged.rect.width * originalScale.x);
                 float height = Mathf.Abs(enlarged.rect.height * originalScale.y);
                 if (width > 1f)
-                    factor = Mathf.Min(factor, 2140f / width);
+                    factor = Mathf.Min(factor, 2160f / width);
                 if (height > 1f)
-                    factor = Mathf.Min(factor, 895f / height);
-                factor = Mathf.Clamp(factor, .80f, 1.24f);
+                    factor = Mathf.Min(factor, 930f / height);
+                factor = Mathf.Clamp(factor, .80f, 1.9f);
                 enlarged.localScale = originalScale * factor;
             }
 
@@ -282,7 +285,24 @@ namespace HIGHFLY.Mobile
                     premiumModal ? 3 : 2);
                 ShadowOnce(background.gameObject);
             }
-            if (!premiumModal) return;
+            if (window is InventoryPanel)
+            {
+                // Large touch-friendly slots, native bag drag/drop retained.
+                foreach (var grid in window.GetComponentsInChildren<GridLayoutGroup>(true))
+                {
+                    if (grid.cellSize.x < 72f || grid.cellSize.y < 72f)
+                        grid.cellSize = new Vector2(Mathf.Max(72f,grid.cellSize.x),
+                            Mathf.Max(72f,grid.cellSize.y));
+                    grid.spacing = new Vector2(Mathf.Max(6f,grid.spacing.x),
+                        Mathf.Max(6f,grid.spacing.y));
+                }
+            }
+            if (!premiumModal)
+            {
+                foreach (var action in window.GetComponentsInChildren<HighlightButton>(true))
+                    StyleButton(action,false);
+                return;
+            }
 
             if (window is DialogPanel dialog)
             {

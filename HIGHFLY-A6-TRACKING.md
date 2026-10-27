@@ -32,3 +32,12 @@ IMPORTANTE: preservar rama y Pages A5. No declarar verde ningún ítem hasta com
 ## Registro
 - 2026-10-27: creado checklist y rama A6 desde A5 verde.
 - No hay aún compilación A6.
+
+## A6 primera integración — commit en preparación
+- [x] Cámara tactil de eje independiente configurable y HUD con controles de sensibilidad.
+- [x] Separación de rotación de cámara / avatar en FURY y reseteo de movimiento animado en reposo.
+- [x] Presets MOBA/clásico, tamaño/opacidad y configuración de slots S1–S4 guardable.
+- [x] Mejoras de escala táctil de inventario y ventanas nativas.
+- [x] CI independiente con A6 template y build method.
+- [ ] Probar visualmente rig/animaciones (cuello), arcos reales de habilidades y ventanas en S23 Ultra.
+- [ ] Editor por arrastre de posiciones, indicadores de cono/línea vinculados a hitboxes reales y diseño de inventario final.
