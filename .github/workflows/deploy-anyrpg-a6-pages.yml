@@ -1,0 +1,125 @@
+name: Publish HIGHFLY A6 isolated at /a6/ after GREEN WebGL
+
+on:
+  workflow_run:
+    workflows:
+      - A6 - AnyRPG Native Mobile HUD WebGL
+    branches:
+      - highfly/a6-fury-mobile-evolution-20261027
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: highfly-anyrpg-a6-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy-a6-with-a5-backup:
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download verified A6 WebGL artifact from triggering build
+        uses: actions/download-artifact@v4
+        with:
+          name: HIGHFLY-ANYRPG-A6-MOBILE-TEST-WEBGL
+          run-id: ${{ github.event.workflow_run.id }}
+          repository: drakentzy07/HIGHFLY-ANYRPG-LAB
+          github-token: ${{ github.token }}
+          path: a6-build
+
+      - name: Download last verified A5 Pages snapshot to preserve A2 through A5
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          run-id: 40567545826
+          repository: drakentzy07/HIGHFLY-ANYRPG-LAB
+          github-token: ${{ github.token }}
+          path: pages-a5-backup
+
+      - name: Preserve A2/A3/A4/A5 and add A6 in separate directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import gzip, tarfile, shutil
+
+          backup=Path("pages-a5-backup")
+          archives=list(backup.rglob("*.tar"))
+          if len(archives)!=1:
+              raise SystemExit("Expected one verified A5 Pages artifact.tar, found: "+str(archives))
+          root=Path("site-publish")
+          if root.exists(): shutil.rmtree(root)
+          root.mkdir(parents=True)
+          base=root.resolve()
+          with tarfile.open(archives[0],"r:*") as tar:
+              for member in tar:
+                  name=member.name.removeprefix("./")
+                  if not name or name==".": continue
+                  destination=(root/name).resolve()
+                  if destination != base and base not in destination.parents:
+                      raise SystemExit("Unsafe archive path: "+member.name)
+                  if member.isdir():
+                      destination.mkdir(parents=True,exist_ok=True)
+                  elif member.isfile():
+                      destination.parent.mkdir(parents=True,exist_ok=True)
+                      fileobj=tar.extractfile(member)
+                      if fileobj is None: raise SystemExit("Unreadable backup member")
+                      with fileobj,destination.open("wb") as output:
+                          shutil.copyfileobj(fileobj,output)
+                  else:
+                      raise SystemExit("Unsupported archive member: "+member.name)
+          for segment,signature in [(".", "HighflyA2MobileBridge"), ("a3","HIGHFLY A3"),("a4","HIGHFLY A4"),("a5","HIGHFLY A5")]:
+              path=root/segment/"index.html"
+              if not path.exists() or signature not in path.read_text(encoding="utf-8"):
+                  raise SystemExit("Verified previous version missing: "+str(path))
+              payload=root/segment/"Build"
+              if not list(payload.glob("*.wasm")) or not list(payload.glob("*.data")):
+                  raise SystemExit("Missing preserved Unity WebGL payload: "+str(path))
+
+          source=Path("a6-build")
+          if not (source/"index.html").is_file(): raise SystemExit("A6 compiled index is missing")
+          target=root/"a6"
+          shutil.copytree(source,target)
+          index=target/"index.html"
+          html=index.read_text(encoding="utf-8")
+          if "HIGHFLY A6" not in html: raise SystemExit("Unexpected A6 HTML template")
+          build=target/"Build"
+          for packed in sorted(build.glob("*.gz")):
+              unpacked=packed.with_suffix("")
+              with gzip.open(packed,"rb") as inp,unpacked.open("wb") as out: shutil.copyfileobj(inp,out)
+              packed.unlink()
+          for ext in [".framework.js.gz",".wasm.gz",".data.gz",".symbols.json.gz"]:
+              html=html.replace(ext,ext[:-3])
+          index.write_text(html,encoding="utf-8")
+          for glob in ["*.loader.js","*.framework.js","*.wasm","*.data"]:
+              if not list(build.glob(glob)):
+                  raise SystemExit("Missing A6 WebGL asset: "+glob)
+          (root/".nojekyll").touch()
+          size=sum(p.stat().st_size for p in root.rglob("*") if p.is_file())
+          print("Preserved A2/A3/A4/A5 + isolated A6 total bytes:",size)
+          if size>900_000_000: raise SystemExit("Combined Pages site too large")
+          PY
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload versioned site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site-publish
+      - name: Deploy isolated A6 (keep A5)
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Show A6 playable link
+        shell: bash
+        run: echo "A6 https://drakentzy07.github.io/HIGHFLY-ANYRPG-LAB/a6/"
