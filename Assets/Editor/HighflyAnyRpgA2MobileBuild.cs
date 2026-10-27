@@ -123,8 +123,10 @@ namespace Highfly.Editor
             if (string.IsNullOrEmpty(shaderPath))
                 throw new Exception("[HIGHFLY A2] TMP SDF shader GUID missing even after extracting unitypackage.");
             Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(shaderPath);
-            if (shader == null || !shader.isSupported)
-                throw new Exception("[HIGHFLY A2] TMP SDF shader unavailable or unsupported: " + shaderPath);
+            if (shader == null)
+                throw new Exception("[HIGHFLY A2] TMP SDF shader missing: " + shaderPath);
+            // Shader.isSupported in headless Linux editor can be false before the WebGL player
+            // initializes graphics. It is not a valid build blocker; WebGL compiles shader variants.
             Debug.Log("[HIGHFLY A2] TMP SDF shader OK: " + shader.name + " (" + shaderPath + ")");
         }
     }
