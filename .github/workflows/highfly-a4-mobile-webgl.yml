@@ -3,7 +3,7 @@ name: A4 - AnyRPG Native Mobile HUD WebGL
 on:
   push:
     branches:
-      - highfly/a4-native-mobile-hud-20261027
+      - highfly/a4-mobile-ux-tutorial-20261027
   workflow_dispatch:
 
 permissions:
