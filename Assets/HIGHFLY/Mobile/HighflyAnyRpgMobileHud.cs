@@ -41,6 +41,8 @@ namespace HIGHFLY.Mobile
         private TextMeshProUGUI menuFeedbackText;
         private Image attackIcon;
         private Button attackButton;
+        private Button dashButton;
+        private TextMeshProUGUI dashLabel;
         private CloseableWindow openedNativeWindow;
         private float nextRefresh;
         private bool activeLastFrame;
@@ -131,6 +133,12 @@ namespace HIGHFLY.Mobile
             backLayer.SetActive(openedNativeWindow != null && openedNativeWindow.IsOpen);
             if (hideDesktopActionBars) HideNative();
             RefreshSlots();
+            if (dashLabel != null)
+            {
+                float remaining = HighflyTouchInputState.DashRemaining;
+                dashLabel.text = remaining > 0.05f ? remaining.ToString("0.0") : "DASH";
+                dashButton.interactable = remaining <= 0f;
+            }
         }
 
         // These are the keyboard/desktop help overlays visible in the mobile video.
@@ -484,13 +492,14 @@ namespace HIGHFLY.Mobile
         // AnyRPG prefabs and remains simple to remove/rebuild.
         private void Build()
         {
-            GameObject canvasGo = new GameObject("HIGHFLY A4 Mobile Canvas",
+            GameObject canvasGo = new GameObject("HIGHFLY FURY Premium Android Canvas",
                 typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler),
                 typeof(GraphicRaycaster));
             canvasGo.transform.SetParent(transform, false);
             canvas = canvasGo.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 300;
+            canvasGo.AddComponent<HighflySpanishMobileUI>();
             var scaler = canvasGo.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(2316, 1080);
@@ -508,27 +517,35 @@ namespace HIGHFLY.Mobile
             Stretch(look, new Vector2(.50f,0), Vector2.one);
             look.gameObject.AddComponent<HighflyTouchLookArea>();
 
-            var move = Panel("Joystick movement", gameplayLayer.transform, C(22,70,105,95));
-            Place(move, new Vector2(0,0), new Vector2(183,173), new Vector2(240,240));
+            var move = Panel("FURY 360 joystick", gameplayLayer.transform, C(8,25,49,154));
+            Place(move, new Vector2(0,0), new Vector2(212,205), new Vector2(330,330));
             move.GetComponent<Image>().sprite = SoftDisc();
-            var knob = Panel("Joystick thumb", move, C(82,170,230,184));
-            Place(knob, new Vector2(.5f,.5f), Vector2.zero, new Vector2(85,85));
+            var outerRing = move.gameObject.AddComponent<Outline>();
+            outerRing.effectColor = C(59,205,255,115);
+            outerRing.effectDistance = new Vector2(3,-3);
+            var knob = Panel("FURY direction control", move, C(38,164,226,218));
+            Place(knob, new Vector2(.5f,.5f), Vector2.zero, new Vector2(112,112));
             knob.GetComponent<Image>().sprite = SoftDisc();
+            var knobShadow = knob.gameObject.AddComponent<Shadow>();
+            knobShadow.effectColor = C(0,0,0,210);
+            knobShadow.effectDistance = new Vector2(4,-6);
             knob.GetComponent<Image>().raycastTarget = false;
             var joystick = move.gameObject.AddComponent<HighflyTouchMoveArea>();
             joystick.SetKnob(knob);
 
             // Native AnyRPG actions, not speculative virtual-device buttons.
-            var jump = UiButton("SALTO", gameplayLayer.transform, new Vector2(.5f,0),
-                new Vector2(-201,146), new Vector2(111,111), C(45,93,140,174));
+            // Right-hand mobility next to skills; two fingers can move and jump.
+            var jump = UiButton("SALTO ×2", gameplayLayer.transform, Vector2.right,
+                new Vector2(-765,119), new Vector2(120,120), C(27,82,129,240));
             jump.onClick.AddListener(HighflyTouchInputState.TapJump);
-            var dash = UiButton("DASH", gameplayLayer.transform, new Vector2(.5f,0),
-                new Vector2(-68,146), new Vector2(111,111), C(45,93,140,174));
-            dash.onClick.AddListener(HighflyTouchInputState.TapDash);
+            dashButton = UiButton("DASH", gameplayLayer.transform, Vector2.right,
+                new Vector2(-630,119), new Vector2(120,120), C(56,50,130,240));
+            dashLabel = dashButton.GetComponentInChildren<TextMeshProUGUI>();
+            dashButton.onClick.AddListener(HighflyTouchInputState.TapDash);
 
             var interact = UiButton("USAR", gameplayLayer.transform,
-                new Vector2(1,0), new Vector2(-365,90), new Vector2(108,85),
-                C(40,80,125,188));
+                new Vector2(1,0), new Vector2(-382,83), new Vector2(108,85),
+                C(18,73,102,233));
             interact.onClick.AddListener(PressInteract);
 
             // Arced four skills; center-right under the camera swipe surface.
@@ -541,7 +558,7 @@ namespace HIGHFLY.Mobile
                 int slot = i;
                 var button = UiButton("S"+(i+1), gameplayLayer.transform,
                     new Vector2(1,0), positions[i], new Vector2(112,112),
-                    C(35,87,154,190));
+                    C(18,56,102,236));
                 button.onClick.AddListener(() => PressSkill(slot));
                 skillButtons[i] = button;
                 skillTexts[i] = button.GetComponentInChildren<TextMeshProUGUI>();
@@ -551,20 +568,23 @@ namespace HIGHFLY.Mobile
 
             attackButton = UiButton("ATK", gameplayLayer.transform,
                 new Vector2(1,0), new Vector2(-133,140),
-                new Vector2(149,149), C(40,103,180,218));
+                new Vector2(156,156), C(20,104,168,247));
             attackButton.onClick.AddListener(PressAttack);
             attackText = attackButton.GetComponentInChildren<TextMeshProUGUI>();
             attackIcon = InnerIcon(attackButton.transform);
 
-            var menuBtn = UiButton("•••", gameplayLayer.transform,
+            var menuBtn = UiButton("☰", gameplayLayer.transform,
                 Vector2.one, new Vector2(-65,-62),
-                new Vector2(94,69), C(40,75,111,195));
+                new Vector2(94,69), C(12,40,73,242));
             menuBtn.onClick.AddListener(ToggleMenu);
 
             menuLayer = Layer("Menu (modal)", canvasGo.transform);
             var dim = Panel("Dim background", menuLayer.transform, C(4,12,28,200));
             Stretch(dim, Vector2.zero, Vector2.one);
-            var frame = Panel("Centered menu", menuLayer.transform, C(17,31,59,250));
+            var frame = Panel("Centered menu", menuLayer.transform, C(7,23,48,252));
+            var frameEdge = frame.gameObject.AddComponent<Outline>();
+            frameEdge.effectColor = C(61,179,230,210);
+            frameEdge.effectDistance = new Vector2(2,-2);
             Place(frame, new Vector2(.5f,.5f), Vector2.zero, new Vector2(760,690));
             Label("HIGHFLY  ·  MENÚ", frame, new Vector2(.5f,1),
                 new Vector2(0,-52), new Vector2(650,75), 40);
@@ -698,6 +718,9 @@ namespace HIGHFLY.Mobile
             var tmp = go.GetComponent<TextMeshProUGUI>();
             tmp.text = text;
             tmp.fontSize = fontSize;
+            tmp.enableAutoSizing = true;
+            tmp.fontSizeMin = Mathf.Max(13, fontSize * .65f);
+            tmp.fontSizeMax = fontSize;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = Color.white;
             tmp.raycastTarget = false;
@@ -710,10 +733,17 @@ namespace HIGHFLY.Mobile
             var image = Panel(text+" Button", parent, bg);
             Place(image, anchor, pos, size);
             image.GetComponent<Image>().sprite = size.x <= size.y * 1.65f ? SoftDisc() : SoftRounded();
+            var edge = image.gameObject.AddComponent<Outline>();
+            edge.effectColor = C(56,188,235,192);
+            edge.effectDistance = new Vector2(2,-2);
+            var shade = image.gameObject.AddComponent<Shadow>();
+            shade.effectColor = C(0,0,0,195);
+            shade.effectDistance = new Vector2(4,-6);
             var button = image.gameObject.AddComponent<Button>();
             var colors = button.colors;
-            colors.highlightedColor = C(100,176,244,255);
-            colors.pressedColor = C(29,119,175,255);
+            colors.highlightedColor = C(68,180,221,255);
+            colors.pressedColor = C(20,124,171,255);
+            colors.disabledColor = C(35,48,66,133);
             button.colors = colors;
             Label(text, image, new Vector2(.5f,.5f),
                 Vector2.zero, size - new Vector2(8,8), Mathf.Clamp(size.y * .23f, 17f, 27f));
