@@ -38,6 +38,7 @@ namespace HIGHFLY.Mobile
         private Image[] skillCooldowns = new Image[4];
         private Button[] skillButtons = new Button[4];
         private TextMeshProUGUI attackText;
+        private TextMeshProUGUI menuFeedbackText;
         private Image attackIcon;
         private Button attackButton;
         private CloseableWindow openedNativeWindow;
@@ -231,6 +232,28 @@ namespace HIGHFLY.Mobile
                 Debug.LogWarning("[HIGHFLY A5] ATK unavailable: this character has no native basic attack equipped.");
                 return;
             }
+            // Soft-target only enemies. AnyRPG controls all actual damage,
+            // targeting validity, animation and cooldowns.
+            if (unit.Target == null)
+            {
+                UnitController nearest = null;
+                float nearestSq = 12f * 12f;
+                foreach (var candidate in FindObjectsByType<UnitController>(FindObjectsSortMode.None))
+                {
+                    if (candidate == null || candidate == unit ||
+                        candidate.CharacterStats == null ||
+                        !candidate.CharacterStats.IsAlive ||
+                        Faction.RelationWith(candidate, unit.BaseCharacter.Faction) > -1)
+                        continue;
+                    Vector3 delta = candidate.transform.position - unit.transform.position;
+                    float sq = delta.sqrMagnitude;
+                    if (sq > nearestSq || Vector3.Dot(unit.transform.forward, delta.normalized) < -.15f)
+                        continue;
+                    nearest = candidate;
+                    nearestSq = sq;
+                }
+                if (nearest != null) unit.SetTarget(nearest);
+            }
             unit.CharacterAbilityManager.AttemptAutoAttack(true);
         }
 
@@ -288,11 +311,14 @@ namespace HIGHFLY.Mobile
                 case "achievements": target = ui.achievementListWindow; break;
                 case "mainmenu": target = ui.inGameMainMenuWindow; break;
             }
-            if (target == null)
+            if (target == null || target.CloseableWindowContents == null)
             {
-                Debug.LogWarning("HIGHFLY A3: AnyRPG window unavailable: " + which);
+                string warning = "Este módulo no está configurado en Features Demo: " + which;
+                Debug.LogWarning("[HIGHFLY A5] " + warning);
+                if (menuFeedbackText != null) menuFeedbackText.text = warning;
                 return;
             }
+            if (menuFeedbackText != null) menuFeedbackText.text = "";
             menuLayer.SetActive(false);
             gameplayLayer.SetActive(false);
             openedNativeWindow = target;
@@ -458,6 +484,8 @@ namespace HIGHFLY.Mobile
             Place(frame, new Vector2(.5f,.5f), Vector2.zero, new Vector2(760,690));
             Label("HIGHFLY  ·  MENÚ", frame, new Vector2(.5f,1),
                 new Vector2(0,-52), new Vector2(650,75), 40);
+            menuFeedbackText = Label("", frame, new Vector2(.5f,0),
+                new Vector2(0,10), new Vector2(690,55), 18);
             string[] items = {"Personaje","Inventario","Habilidades","Misiones",
                 "Fabricación","Mapa","Logros","Opciones"};
             string[] targets = {"character","inventory","skills","quests",
