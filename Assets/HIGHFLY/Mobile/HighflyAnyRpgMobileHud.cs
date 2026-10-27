@@ -30,6 +30,9 @@ namespace HIGHFLY.Mobile
         private bool nativeModalVisible;
         private static Sprite circleSprite, roundedSprite;
         private const string TutorialSeenKey = "HIGHFLY_A4_MOBILE_GUIDE_SEEN";
+        // Combat skills are discovered from learned AnyRPG abilities, never from
+        // arbitrary utility/actionbar positions (e.g. summons or portals).
+        private AbilityProperties[] combatAbilities = new AbilityProperties[4];
         private TextMeshProUGUI[] skillTexts = new TextMeshProUGUI[4];
         private Image[] skillIcons = new Image[4];
         private Image[] skillCooldowns = new Image[4];
@@ -67,6 +70,7 @@ namespace HIGHFLY.Mobile
             tutorialLayer.SetActive(false);
             gameplayLayer.SetActive(false); // do not synthesize devices in login/character creator
             canvas.enabled = false;
+            HighflyTouchInputState.Enabled = false;
         }
 
         private void Update()
@@ -85,6 +89,8 @@ namespace HIGHFLY.Mobile
             if (canvas.enabled != ready) canvas.enabled = ready;
             if (!ready)
             {
+                HighflyTouchInputState.Enabled = false;
+                HighflyTouchInputState.Reset();
                 if (activeLastFrame) RestoreNative();
                 gameplayLayer.SetActive(false);
                 menuLayer.SetActive(false);
@@ -113,6 +119,8 @@ namespace HIGHFLY.Mobile
                 && !menuLayer.activeSelf && !tutorialLayer.activeSelf;
             if (gameplayLayer.activeSelf != canPlay)
                 gameplayLayer.SetActive(canPlay);
+            HighflyTouchInputState.Enabled = canPlay;
+            if (!canPlay) HighflyTouchInputState.Reset();
             backLayer.SetActive(openedNativeWindow != null && openedNativeWindow.IsOpen);
             if (hideDesktopActionBars) HideNative();
             RefreshSlots();
@@ -160,43 +168,70 @@ namespace HIGHFLY.Mobile
                 ? slots[index] : null;
         }
 
+
         private void RefreshSlots()
         {
-            var slots = Slots();
+            var unit = gameManager.PlayerManagerClient != null
+                ? gameManager.PlayerManagerClient.UnitController : null;
+            if (unit == null || unit.CharacterAbilityManager == null) return;
+            var manager = unit.CharacterAbilityManager;
+
+            // Enumerate learned native combat abilities. A summon, portal, or
+            // item in the desktop actionbar must never masquerade as S1/S2.
+            var combat = new List<AbilityProperties>();
+            foreach (var ability in manager.AbilityList.Values)
+            {
+                if (ability == null || ability.IsAutoAttack) continue;
+                var target = ability.GetTargetOptions(unit);
+                if (target == null || !target.CanCastOnEnemy ||
+                    target.RequiresGroundTarget) continue;
+                combat.Add(ability);
+            }
+            combat.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName,
+                StringComparison.OrdinalIgnoreCase));
             for (int i = 0; i < 4; i++)
             {
-                ActionButton original = At(slots, firstSkillSlotIndex + i);
-                bool equipped = original != null && original.Useable != null;
-                skillButtons[i].interactable = equipped;
-                skillIcons[i].enabled = equipped && original.Icon != null
-                    && original.Icon.sprite != null;
-                if (skillIcons[i].enabled) skillIcons[i].sprite = original.Icon.sprite;
+                AbilityProperties ability = i < combat.Count ? combat[i] : null;
+                combatAbilities[i] = ability;
+                skillButtons[i].interactable = ability != null;
+                skillIcons[i].enabled = ability != null && ability.Icon != null;
+                if (skillIcons[i].enabled) skillIcons[i].sprite = ability.Icon;
+                skillTexts[i].text = ability != null ? "S" + (i + 1) : "+";
 
-                // Native cooldown UI already reflects actual ability cooldown.
-                float remaining = original != null && original.CoolDownIcon != null
-                    ? original.CoolDownIcon.fillAmount : 0f;
-                skillCooldowns[i].fillAmount = equipped ? Mathf.Clamp01(remaining) : 0f;
-                skillTexts[i].text = equipped ? "S" + (i + 1) : "+";
+                float cooldown = 0f;
+                if (ability != null &&
+                    manager.AbilityCoolDownDictionary.TryGetValue(ability.DisplayName,
+                        out var cd) && cd.InitialCoolDown > .01f)
+                    cooldown = cd.RemainingCoolDown / cd.InitialCoolDown;
+                skillCooldowns[i].fillAmount = Mathf.Clamp01(cooldown);
             }
 
-            var attack = At(slots, attackSlotIndex);
-            bool attackReady = attack != null && attack.Useable != null;
-            attackButton.interactable = attackReady;
-            attackIcon.enabled = attackReady && attack.Icon != null && attack.Icon.sprite != null;
-            if (attackIcon.enabled) attackIcon.sprite = attack.Icon.sprite;
+            var basic = manager.AutoAttackAbility;
+            attackButton.interactable = basic != null;
+            attackIcon.enabled = basic != null && basic.Icon != null;
+            if (attackIcon.enabled) attackIcon.sprite = basic.Icon;
             attackText.text = "ATK";
         }
 
         public void PressSkill(int index)
         {
             if (!GameplayAvailable() || index < 0 || index >= 4) return;
-            PressSlot(firstSkillSlotIndex + index);
+            AbilityProperties ability = combatAbilities[index];
+            if (ability == null) return;
+            var unit = gameManager.PlayerManagerClient.UnitController;
+            unit.CharacterAbilityManager.BeginAbility(ability, true);
         }
 
         public void PressAttack()
         {
             if (!GameplayAvailable()) return;
-            PressSlot(attackSlotIndex);
+            var unit = gameManager.PlayerManagerClient.UnitController;
+            if (unit.CharacterAbilityManager.AutoAttackAbility == null)
+            {
+                Debug.LogWarning("[HIGHFLY A5] ATK unavailable: this character has no native basic attack equipped.");
+                return;
+            }
+            unit.CharacterAbilityManager.AttemptAutoAttack(true);
         }
 
         private bool GameplayAvailable()
@@ -205,13 +240,6 @@ namespace HIGHFLY.Mobile
                 && gameManager.PlayerManagerClient.UnitController != null
                 && openedNativeWindow == null && !menuLayer.activeSelf
                 && !tutorialLayer.activeSelf && !nativeModalVisible;
-        }
-
-        private void PressSlot(int slot)
-        {
-            ActionButton action = At(Slots(), slot);
-            if (action == null || action.Useable == null) return;
-            action.OnClick(true);
         }
 
         public void PressInteract()
@@ -337,6 +365,8 @@ namespace HIGHFLY.Mobile
         private void OnDestroy()
         {
             RestoreNative();
+            HighflyTouchInputState.Enabled = false;
+            HighflyTouchInputState.Reset();
             if (instance == this) instance = null;
         }
 
@@ -353,9 +383,14 @@ namespace HIGHFLY.Mobile
             canvas.sortingOrder = 300;
             var scaler = canvasGo.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(2340, 1080);
+            scaler.referenceResolution = new Vector2(2316, 1080);
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
             scaler.matchWidthOrHeight = .5f;
+
+            // AnyRPG multiplies camera right-stick input by this preference.
+            // An unset value is zero: previously no swipe could rotate the camera.
+            if (PlayerPrefs.GetFloat("JoystickLookSpeed", 0f) <= 0.01f)
+                PlayerPrefs.SetFloat("JoystickLookSpeed", 1.6f);
 
             gameplayLayer = Layer("Gameplay", canvasGo.transform);
             // Create camera surface FIRST: action buttons added later win hit testing.
@@ -373,14 +408,13 @@ namespace HIGHFLY.Mobile
             var joystick = move.gameObject.AddComponent<HighflyTouchMoveArea>();
             joystick.SetKnob(knob);
 
-            OnScreen("SALTO", gameplayLayer.transform, new Vector2(.5f,0),
-                new Vector2(-201,146), new Vector2(111,111),
-                C(45,93,140,174), "<XInputController>/buttonWest");
-
-            // AnyRPG ROLL defaults to R on keyboard. Dash/FURY is a separate upgrade.
-            OnScreen("RODAR", gameplayLayer.transform, new Vector2(.5f,0),
-                new Vector2(-68,146), new Vector2(111,111),
-                C(45,93,140,174), "<Keyboard>/r");
+            // Native AnyRPG actions, not speculative virtual-device buttons.
+            var jump = UiButton("SALTO", gameplayLayer.transform, new Vector2(.5f,0),
+                new Vector2(-201,146), new Vector2(111,111), C(45,93,140,174));
+            jump.onClick.AddListener(HighflyTouchInputState.TapJump);
+            var roll = UiButton("RODAR", gameplayLayer.transform, new Vector2(.5f,0),
+                new Vector2(-68,146), new Vector2(111,111), C(45,93,140,174));
+            roll.onClick.AddListener(HighflyTouchInputState.TapRoll);
 
             var interact = UiButton("USAR", gameplayLayer.transform,
                 new Vector2(1,0), new Vector2(-365,90), new Vector2(108,85),
