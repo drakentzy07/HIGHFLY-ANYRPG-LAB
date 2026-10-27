@@ -59,6 +59,7 @@ namespace HIGHFLY.Mobile
             instance = this;
             DontDestroyOnLoad(gameObject);
             Build();
+            gameplayLayer.SetActive(false); // do not synthesize devices in login/character creator
             canvas.enabled = false;
         }
 
@@ -79,6 +80,10 @@ namespace HIGHFLY.Mobile
             if (!ready)
             {
                 if (activeLastFrame) RestoreNative();
+                gameplayLayer.SetActive(false);
+                menuLayer.SetActive(false);
+                backLayer.SetActive(false);
+                openedNativeWindow = null;
                 activeLastFrame = false;
                 return;
             }
@@ -86,6 +91,7 @@ namespace HIGHFLY.Mobile
             if (!activeLastFrame)
             {
                 activeLastFrame = true;
+                gameplayLayer.SetActive(openedNativeWindow == null && !menuLayer.activeSelf);
                 if (hideDesktopActionBars) HideNative();
             }
 
