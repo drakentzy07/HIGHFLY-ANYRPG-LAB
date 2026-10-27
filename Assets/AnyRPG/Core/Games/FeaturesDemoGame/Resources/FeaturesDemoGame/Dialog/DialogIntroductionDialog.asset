@@ -25,14 +25,10 @@ MonoBehaviour:
   dialogNodes:
   - startTime: 0
     showTime: 0
-    description: 'This quest has an opening dialog.
-
-'
+    description: "Esta misión comienza con una conversación."
     nextOption: 
   - startTime: 0
     showTime: 0
-    description: Because the Opening Dialog box is ticked in the configuration, it
-      will automatically look for a dialog with the quest and display it before giving
-      the option to accept the quest.
+    description: "Antes de aceptar la misión, el sistema te presenta este diálogo introductorio para que sepas qué vas a hacer."
     nextOption: 
   prerequisiteConditions: []

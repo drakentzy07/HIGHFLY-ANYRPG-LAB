@@ -25,16 +25,12 @@ MonoBehaviour:
   dialogNodes:
   - startTime: 0
     showTime: 0
-    description: This dialog has a prerequisite, and is repeatable
-    nextOption: What prerequisite?
+    description: "Esta conversación tiene un requisito previo y se puede repetir."
+    nextOption: "¿Qué requisito?"
   - startTime: 0
     showTime: 0
-    description: 'To see it, you have have completed the Standard Dialog.
-
-
-      Do
-      you remember doing that?'
-    nextOption: Now that you mention it...
+    description: "Para verla primero tenés que completar el Diálogo estándar. ¿Te acordás de haberlo hecho?"
+    nextOption: "Ahora que lo mencionás..."
   prerequisiteConditions:
   - requireAny: 0
     reverseMatch: 0

@@ -25,15 +25,14 @@ MonoBehaviour:
   dialogNodes:
   - startTime: 0
     showTime: 0
-    description: This dialog can only be completed once
-    nextOption: Just once?
+    description: "Esta conversación solo se puede completar una vez."
+    nextOption: "¿Solo una vez?"
   - startTime: 0
     showTime: 0
-    description: Yes, once you complete it, the option to see it will disappear forever.
-    nextOption: Oh no
+    description: "Sí. Cuando la completes, esta opción desaparecerá para siempre."
+    nextOption: "¡Oh, no!"
   - startTime: 0
     showTime: 0
-    description: Don't worry though, completing this dialog will unlock another dialog
-      and show you how to use prerequisites
-    nextOption: Wow that's so neat!
+    description: "Tranquilo: al terminarla desbloquearás otra conversación y aprenderás cómo funcionan los requisitos."
+    nextOption: "¡Qué interesante!"
   prerequisiteConditions: []

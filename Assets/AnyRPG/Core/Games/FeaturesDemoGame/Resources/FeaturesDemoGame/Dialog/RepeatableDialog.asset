@@ -25,10 +25,10 @@ MonoBehaviour:
   dialogNodes:
   - startTime: 0
     showTime: 0
-    description: This is a repeatable dialog.
-    nextOption: Repeatable?
+    description: "Este diálogo se puede repetir."
+    nextOption: "¿Repetir?"
   - startTime: 0
     showTime: 0
-    description: Yes, you can repeat it as many times as you want
-    nextOption: I'm getting a sense of deja vu here
+    description: "Sí, podés hablar conmigo tantas veces como quieras."
+    nextOption: "Esto me resulta conocido..."
   prerequisiteConditions: []

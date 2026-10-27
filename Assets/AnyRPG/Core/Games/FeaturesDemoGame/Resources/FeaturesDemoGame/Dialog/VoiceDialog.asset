@@ -26,22 +26,22 @@ MonoBehaviour:
   dialogNodes:
   - startTime: 0
     showTime: 0
-    description: How can I help you?
+    description: "¿En qué puedo ayudarte?"
     audioClip: {fileID: 8300000, guid: 1430870eaeabf6d4b92a3358307ba4e3, type: 3}
-    nextOption: How can you help me?
+    nextOption: "¿Cómo podés ayudarme?"
   - startTime: 0
     showTime: 0
-    description: Looking to buy something?
+    description: "¿Estás buscando algo para comprar?"
     audioClip: {fileID: 8300000, guid: 2d505a5fee8475c4190e378085575626, type: 3}
-    nextOption: I might be
+    nextOption: "Tal vez..."
   - startTime: 0
     showTime: 0
-    description: Lets trade
+    description: "¡Hagamos un intercambio!"
     audioClip: {fileID: 8300000, guid: 371cb9231a1d08b4980f3f1fee4f4c1b, type: 3}
-    nextOption: What do you have for sale?
+    nextOption: "¿Qué tenés a la venta?"
   - startTime: 0
     showTime: 0
-    description: Take a look around
+    description: "Mirá lo que tengo a la venta."
     audioClip: {fileID: 8300000, guid: 4c4ce7bf75a9c5d40ba3b46268e9651c, type: 3}
-    nextOption: OK
+    nextOption: "Entendido"
   prerequisiteConditions: []
