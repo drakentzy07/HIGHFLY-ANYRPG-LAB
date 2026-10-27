@@ -1,36 +1,20 @@
-// HIGHFLY A2 - experimental mobile input adapters.
-// MIT-compatible original code, isolated from AnyRPG engine sources.
-// Add to UI Images with raycastTarget enabled and an InputSystemUIInputModule.
-using UnityEngine;
+// HIGHFLY FURY 360 mobile bridge. No synthetic Gamepad:
+// Unity WebGL's virtual controller can interfere with simultaneous touches.
+// All inputs enter AnyRPG's native InputManager at RegisterInput().
 using AnyRPG;
+using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.InputSystem.Layouts;
-using UnityEngine.InputSystem.OnScreen;
 
 namespace HIGHFLY.Mobile
 {
-    /// <summary>
-    /// Large fixed-area analog stick. Feeds a virtual Gamepad left stick;
-    /// it does not replace or modify the AnyRPG movement controller.
-    /// </summary>
     [AddComponentMenu("HIGHFLY/Mobile/Touch Move Area")]
-    public sealed class HighflyTouchMoveArea : OnScreenControl,
-        IPointerDownHandler, IDragHandler, IPointerUpHandler
+    public sealed class HighflyTouchMoveArea : MonoBehaviour,
+        IPointerDownHandler, IDragHandler, IPointerUpHandler, ICancelHandler
     {
-        [SerializeField, InputControl(layout = "Vector2")]
-        private string inputControlPath = "<Gamepad>/leftStick";
-
         [SerializeField] private RectTransform knob;
         [SerializeField, Min(1f)] private float radius = 94f;
-        [SerializeField, Range(0f, 0.4f)] private float deadZone = 0.07f;
-
+        [SerializeField, Range(0f, 0.4f)] private float deadZone = .07f;
         private int activePointer = int.MinValue;
-
-        protected override string controlPathInternal
-        {
-            get { return inputControlPath; }
-            set { inputControlPath = value; }
-        }
 
         public void SetKnob(RectTransform value) { knob = value; }
 
@@ -44,116 +28,102 @@ namespace HIGHFLY.Mobile
         public void OnDrag(PointerEventData eventData)
         {
             if (eventData.pointerId != activePointer) return;
-
-            RectTransform area = transform as RectTransform;
+            var area = transform as RectTransform;
             if (area == null) return;
-
-            Vector2 localPosition;
             if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                area, eventData.position, eventData.pressEventCamera, out localPosition))
-            {
-                return;
-            }
-
-            // Center-relative even if the designer changes the area's pivot.
-            Vector2 center = new Vector2(
-                (0.5f - area.pivot.x) * area.rect.width,
-                (0.5f - area.pivot.y) * area.rect.height);
-            Vector2 displacement = Vector2.ClampMagnitude(localPosition - center, radius);
-            Vector2 value = displacement / radius;
-            if (value.sqrMagnitude < deadZone * deadZone) value = Vector2.zero;
-
-            if (knob != null) knob.anchoredPosition = displacement;
+                area, eventData.position, eventData.pressEventCamera, out var point)) return;
+            var center = new Vector2((.5f-area.pivot.x)*area.rect.width,
+                (.5f-area.pivot.y)*area.rect.height);
+            var delta = Vector2.ClampMagnitude(point - center, radius);
+            var value = delta/radius;
+            if (value.sqrMagnitude < deadZone*deadZone) value = Vector2.zero;
+            if (knob != null) knob.anchoredPosition = delta;
             HighflyTouchInputState.Move = value;
-            SendValueToControl(value);
         }
 
         public void OnPointerUp(PointerEventData eventData)
         {
-            if (activePointer != eventData.pointerId) return;
-            ReleaseInput();
+            if (activePointer == eventData.pointerId) ResetStick();
         }
 
-        private void ReleaseInput()
-        {
-            activePointer = int.MinValue;
-            if (knob != null) knob.anchoredPosition = Vector2.zero;
-            HighflyTouchInputState.Move = Vector2.zero;
-            SendValueToControl(Vector2.zero);
-        }
+        public void OnCancel(BaseEventData eventData) { ResetStick(); }
 
-        protected override void OnDisable()
+        private void ResetStick()
         {
-            // The OnScreenControl base removes the virtual device.
             activePointer = int.MinValue;
             HighflyTouchInputState.Move = Vector2.zero;
             if (knob != null) knob.anchoredPosition = Vector2.zero;
-            base.OnDisable();
         }
+
+        private void OnDisable() { ResetStick(); }
     }
 
-    /// <summary>
-    /// Invisible right-side drag surface. Each pointer owns its gesture, so
-    /// moving the left joystick does not steal the camera touch.
-    /// Maps drag velocity to the virtual Gamepad right stick.
-    /// </summary>
-
-    // AnyRPG polls analogs in InputManager.RegisterInput(). Its WebGL input
-    // actions may ignore an OnScreenControl-created virtual XInput controller.
-    // This isolated mobile bridge inserts values at the exact same native poll.
+    // FURY input state is read by the ORIGINAL AnyRPG InputManager once per frame.
     public static class HighflyTouchInputState
     {
         public static bool Enabled;
         public static Vector2 Move;
         private static Vector2 lookImpulse;
         private static bool jumpQueued;
-        private static bool rollQueued;
-        private static bool releaseJumpNext;
-        private static bool releaseRollNext;
+        private static bool jumpRelease;
+        private static bool dashQueued;
+        private static float nextDashTime;
+        public static bool DashActive { get; private set; }
+        public static Vector2 DashDirection { get; private set; }
+        public static float DashUntil { get; private set; }
+        public const float DashSpeed = 10f;
 
         public static void Look(Vector2 value)
         {
-            lookImpulse = Vector2.ClampMagnitude(lookImpulse + value, 1f);
+            if (Enabled) lookImpulse = Vector2.ClampMagnitude(lookImpulse + value, 1f);
         }
 
-        public static void TapJump() { if (Enabled) jumpQueued = true; }
-        public static void TapRoll() { if (Enabled) rollQueued = true; }
+        public static void TapJump()
+        {
+            if (Enabled) jumpQueued = true;
+        }
+
+        public static void TapDash()
+        {
+            if (!Enabled || Time.time < nextDashTime) return;
+            nextDashTime = Time.time + .85f;
+            DashDirection = Move.sqrMagnitude > .025f ? Move.normalized : Vector2.up;
+            DashUntil = Time.time + .18f;
+            DashActive = true;
+            dashQueued = true;
+        }
 
         public static void Reset()
         {
             Move = Vector2.zero;
             lookImpulse = Vector2.zero;
             jumpQueued = false;
-            rollQueued = false;
+            dashQueued = false;
+            DashActive = false;
         }
 
         public static void ApplyTo(InputManager manager)
         {
             if (manager == null) return;
-            if (releaseJumpNext && manager.InputActionNodes.TryGetValue("JUMP", out var previousJump))
-                previousJump.RegisterKeyUp();
-            if (releaseRollNext && manager.InputActionNodes.TryGetValue("ROLL", out var previousRoll))
-                previousRoll.RegisterKeyUp();
-            releaseJumpNext = releaseRollNext = false;
+            if (jumpRelease && manager.InputActionNodes.TryGetValue("JUMP", out var release))
+                release.RegisterKeyUp();
+            jumpRelease = false;
             if (!Enabled) { Reset(); return; }
 
-            manager.leftAnalogHorizontal = Mathf.Clamp(Move.x, -1f, 1f);
-            manager.leftAnalogVertical = Mathf.Clamp(Move.y, -1f, 1f);
-            manager.rightAnalogHorizontal = Mathf.Clamp(lookImpulse.x, -1f, 1f);
-            manager.rightAnalogVertical = Mathf.Clamp(lookImpulse.y, -1f, 1f);
+            manager.leftAnalogHorizontal = Move.x;
+            manager.leftAnalogVertical = Move.y;
+            manager.rightAnalogHorizontal = lookImpulse.x;
+            manager.rightAnalogVertical = lookImpulse.y;
             lookImpulse = Vector2.zero;
 
             if (jumpQueued && manager.InputActionNodes.TryGetValue("JUMP", out var jump))
             {
                 jump.RegisterKeyPress();
-                releaseJumpNext = true;
+                jumpRelease = true;
             }
-            if (rollQueued && manager.InputActionNodes.TryGetValue("ROLL", out var roll))
-            {
-                roll.RegisterKeyPress();
-                releaseRollNext = true;
-            }
-            jumpQueued = rollQueued = false;
+            jumpQueued = false;
+            if (Time.time >= DashUntil) DashActive = false;
+            dashQueued = false;
         }
     }
 }
