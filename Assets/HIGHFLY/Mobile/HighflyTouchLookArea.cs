@@ -9,7 +9,7 @@ namespace HIGHFLY.Mobile
     public sealed class HighflyTouchLookArea : MonoBehaviour,
         IPointerDownHandler, IDragHandler, IPointerUpHandler, ICancelHandler
     {
-        [SerializeField, Range(.05f,2f)] private float sensitivity = .42f;
+        [SerializeField, Range(.05f,2f)] private float sensitivity = .55f;
         [SerializeField] private bool invertHorizontal;
         [SerializeField] private bool invertVertical;
         private int activePointer = int.MinValue;
