@@ -170,7 +170,11 @@ namespace HIGHFLY.Mobile
             }
 
             TranslateVisibleLabels();
-            if (premiumModal) RefreshQuestHeader();
+            if (premiumModal)
+            {
+                RefreshQuestHeader();
+                PositionBannerAboveActiveWindow();
+            }
             // Native interaction choices are pooled. Re-style newly spawned
             // buttons without altering their original listeners.
             if (current is InteractionPanel)
@@ -299,6 +303,16 @@ namespace HIGHFLY.Mobile
             }
             if (!premiumModal)
             {
+                // Full UI typography for smartphone landscape: scale the native
+                // RPG text, but never modify gameplay content or quest identifiers.
+                foreach (var txt in window.GetComponentsInChildren<TextMeshProUGUI>(true))
+                {
+                    if (txt == null) continue;
+                    txt.enableAutoSizing = true;
+                    txt.fontSize = Mathf.Max(txt.fontSize, 23f);
+                    txt.fontSizeMin = Mathf.Max(txt.fontSizeMin, 16f);
+                    txt.fontSizeMax = Mathf.Max(txt.fontSizeMax, 27f);
+                }
                 foreach (var action in window.GetComponentsInChildren<HighlightButton>(true))
                     StyleButton(action,false);
                 return;
@@ -347,6 +361,30 @@ namespace HIGHFLY.Mobile
             else if (window is InteractionPanel)
                 StyleInteractionChoices(window);
             RefreshQuestHeader();
+            PositionBannerAboveActiveWindow();
+        }
+
+        // A5's banner floated at the top of the display, disconnected from the
+        // NPC window. Position it directly above that native panel in landscape.
+        private void PositionBannerAboveActiveWindow()
+        {
+            if (questBanner == null || !premiumModal || enlarged == null) return;
+            var banner = questBanner.transform as RectTransform;
+            var hudRoot = banner != null ? banner.parent as RectTransform : null;
+            if (hudRoot == null) return;
+            var corners = new Vector3[4];
+            enlarged.GetWorldCorners(corners);
+            Vector3 above = (corners[1] + corners[2]) * .5f;
+            Vector2 screenPoint = RectTransformUtility.WorldToScreenPoint(null, above);
+            Vector2 localPoint;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                hudRoot, screenPoint, null, out localPoint)) return;
+            banner.anchorMin = banner.anchorMax = new Vector2(.5f,.5f);
+            banner.anchoredPosition = new Vector2(
+                Mathf.Clamp(localPoint.x, -hudRoot.rect.width*.5f+510f,
+                    hudRoot.rect.width*.5f-510f),
+                Mathf.Clamp(localPoint.y + 57f,
+                    -hudRoot.rect.height*.5f+80f, hudRoot.rect.height*.5f-65f));
         }
 
         private void RefreshQuestHeader()
