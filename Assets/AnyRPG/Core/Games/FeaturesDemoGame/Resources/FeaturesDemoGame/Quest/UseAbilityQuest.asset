@@ -13,17 +13,10 @@ MonoBehaviour:
   m_Name: UseAbilityQuest
   m_EditorClassIdentifier: 
   resourceName: Use Ability
-  displayName: 
+  displayName: Poné a prueba una habilidad
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This is a quest that requires you to use abilities.
-
-
-    You can
-    use the ability by attacking any enemy.
-
-
-'
+  description: "Usá la habilidad requerida para cumplir el objetivo. Podés hacerlo al atacar a cualquier enemigo."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   optionalOverride: 0

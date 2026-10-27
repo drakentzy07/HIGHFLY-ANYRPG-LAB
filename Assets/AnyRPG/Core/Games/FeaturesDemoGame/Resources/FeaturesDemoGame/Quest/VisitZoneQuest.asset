@@ -13,14 +13,10 @@ MonoBehaviour:
   m_Name: VisitZoneQuest
   m_EditorClassIdentifier: 
   resourceName: Visit Zone
-  displayName: 
+  displayName: Visitá una zona
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This is a quest that requires you to visit a zone (scene).
-
-
-    You
-    can finish this quest by visiting the dungeon.'
+  description: "Explorá el escenario indicado para completar esta misión. Podés hacerlo visitando la mazmorra."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   isAchievement: 0

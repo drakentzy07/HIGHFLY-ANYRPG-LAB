@@ -13,18 +13,10 @@ MonoBehaviour:
   m_Name: Repeatable5StepQuest
   m_EditorClassIdentifier: 
   resourceName: Repeatable 5 Step
-  displayName: 
+  displayName: Encargo de cinco pasos
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This quest is repeatable.
-
-
-    It requires you to complete 5 tasks
-    in a specific order.
-
-
-    The objectives for each step will only show in the
-    quest tracker and quest log once the previous steps are complete'
+  description: "Esta misión se puede repetir. Completá cinco tareas en orden. Los objetivos se muestran progresivamente en el diario y en el seguimiento."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   optionalOverride: 0

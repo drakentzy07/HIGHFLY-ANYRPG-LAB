@@ -13,10 +13,10 @@ MonoBehaviour:
   m_Name: RepeatableQuest
   m_EditorClassIdentifier: 
   resourceName: Repeatable
-  displayName: 
+  displayName: Encargo repetible
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: This quest is repeatable.
+  description: "Podés completar esta misión más de una vez."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   isAchievement: 0

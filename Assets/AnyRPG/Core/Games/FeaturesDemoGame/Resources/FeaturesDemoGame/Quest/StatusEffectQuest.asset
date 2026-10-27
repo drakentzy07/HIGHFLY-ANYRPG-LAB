@@ -13,14 +13,10 @@ MonoBehaviour:
   m_Name: StatusEffectQuest
   m_EditorClassIdentifier: 
   resourceName: Status Effect
-  displayName: 
+  displayName: Aplicá un efecto de estado
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This is a quest that requires you to place a status effect on your
-    character.
-
-
-'
+  description: "Para completar esta misión tenés que aplicar el efecto de estado indicado a tu personaje."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   optionalOverride: 0

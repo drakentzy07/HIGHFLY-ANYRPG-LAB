@@ -13,18 +13,10 @@ MonoBehaviour:
   m_Name: Repeatable2StepQuest
   m_EditorClassIdentifier: 
   resourceName: Repeatable 2 Step
-  displayName: 
+  displayName: Encargo de dos pasos
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This quest is repeatable.
-
-
-    It requires you to complete 2 tasks
-    in a specific order.
-
-
-    The second step will only show on the quest tracker
-    once the first step is complete'
+  description: "Esta misión se puede repetir. Debés completar dos tareas en orden. La segunda aparece en el seguimiento de misiones cuando termines la primera."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   optionalOverride: 0

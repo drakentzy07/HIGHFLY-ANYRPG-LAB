@@ -13,14 +13,10 @@ MonoBehaviour:
   m_Name: UseInteractableQuest
   m_EditorClassIdentifier: 
   resourceName: Use Interactable
-  displayName: 
+  displayName: Interactuá con el entorno
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This is a quest that requires you to interact with an interactable
-    or one of its options.
-
-
-    You can finish this quest at the Spawn Arena'
+  description: "Usá el objeto interactivo indicado o una de sus opciones. Podés completar la misión en la arena de aparición."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   isAchievement: 0
