@@ -108,7 +108,14 @@ jobs:
           (root/".nojekyll").touch()
           size=sum(p.stat().st_size for p in root.rglob("*") if p.is_file())
           print("Preserved A2/A3/A4/A5 + isolated A6 total bytes:",size)
-          if size>900_000_000: raise SystemExit("Combined Pages site too large")
+          # A6 adds one more Unity game to four preserved historical builds.
+          # Keep all A2/A3/A4/A5 pages and drop only optional Unity debug symbols.
+          # The published site must remain below GitHub Pages' 1 GB site limit.
+          for debug in root.rglob("*.symbols.json"):
+              if debug.is_file(): debug.unlink()
+          size=sum(p.stat().st_size for p in root.rglob("*") if p.is_file())
+          print("Pages size after excluding optional debug symbols:",size)
+          if size>995_000_000: raise SystemExit("Site dangerously close to 1 GB limit; do not erase preserved builds")
           PY
 
       - name: Configure Pages
