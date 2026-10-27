@@ -202,7 +202,7 @@ namespace HIGHFLY.Mobile
             string name = (ability.DisplayName ?? "").ToLowerInvariant();
             // Keep generic traversal, portals and summons out of the 4 combat slots.
             if (name.Contains("portal") || name.Contains("teleport") ||
-                name.Contains("summon") || name.Contains("dragon") ||
+                name.Contains("summon") ||
                 name.Contains("gate") || name.Contains("mount") ||
                 name.Contains("recall") || name.Contains("hearth"))
                 return false;
@@ -216,7 +216,9 @@ namespace HIGHFLY.Mobile
             if (effects != null)
                 foreach (var effect in effects)
                     if (effect is AttackEffectProperties ||
-                        effect is ProjectileEffectProperties)
+                        effect is ProjectileEffectProperties ||
+                        (effect is AOEEffectProperties && target != null &&
+                         target.RequiresGroundTarget))
                         return true;
             return false;
         }
