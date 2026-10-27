@@ -537,11 +537,11 @@ namespace HIGHFLY.Mobile
             // Right-hand mobility next to skills; two fingers can move and jump.
             var jump = UiButton("SALTO ×2", gameplayLayer.transform, Vector2.right,
                 new Vector2(-765,119), new Vector2(120,120), C(27,82,129,240));
-            jump.onClick.AddListener(HighflyTouchInputState.TapJump);
+            jump.gameObject.AddComponent<HighflyImmediatePress>().IsJump = true;
             dashButton = UiButton("DASH", gameplayLayer.transform, Vector2.right,
                 new Vector2(-630,119), new Vector2(120,120), C(56,50,130,240));
             dashLabel = dashButton.GetComponentInChildren<TextMeshProUGUI>();
-            dashButton.onClick.AddListener(HighflyTouchInputState.TapDash);
+            dashButton.gameObject.AddComponent<HighflyImmediatePress>().IsJump = false;
 
             var interact = UiButton("USAR", gameplayLayer.transform,
                 new Vector2(1,0), new Vector2(-382,83), new Vector2(108,85),
@@ -785,6 +785,18 @@ namespace HIGHFLY.Mobile
             // text remains visible above cooldown graphic.
             rect.SetSiblingIndex(Math.Max(0,rect.GetSiblingIndex()-1));
             return image;
+        }
+    }
+
+    // The standard Button.onClick is fired on pointer release: a mobile
+    // movement action must begin on touch-down, including while walking.
+    public sealed class HighflyImmediatePress : MonoBehaviour, IPointerDownHandler
+    {
+        public bool IsJump;
+        public void OnPointerDown(PointerEventData eventData)
+        {
+            if (IsJump) HighflyTouchInputState.TapJump();
+            else HighflyTouchInputState.TapDash();
         }
     }
 }
