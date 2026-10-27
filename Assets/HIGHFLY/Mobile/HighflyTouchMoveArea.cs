@@ -17,7 +17,7 @@ namespace HIGHFLY.Mobile
         IPointerDownHandler, IDragHandler, IPointerUpHandler
     {
         [SerializeField, InputControl(layout = "Vector2")]
-        private string inputControlPath = "<Gamepad>/leftStick";
+        private string inputControlPath = "<XInputController>/leftStick";
 
         [SerializeField] private RectTransform knob;
         [SerializeField, Min(1f)] private float radius = 94f;
