@@ -22,10 +22,9 @@ concurrency:
 
 jobs:
   deploy-dual-site:
-    if: >-
-      github.event_name == 'workflow_run' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_repository.full_name == 'drakentzy07/HIGHFLY-ANYRPG-LAB'
+    # PAUSED: A5 is a diagnostic build, not a verified fix.
+    # Do not publish until the black-screen diagnosis is checked in landscape.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     environment:
