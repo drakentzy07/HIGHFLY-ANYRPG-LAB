@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,height=device-height,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#090d16">
-<title>HIGHFLY A2 | AnyRPG Mobile Lab</title>
+<title>HIGHFLY A2.2 | AnyRPG Mobile Lab</title>
 <style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080c12;color:#fff;font:600 14px system-ui,sans-serif;touch-action:none;overscroll-behavior:none;}
 #stage{position:fixed;inset:0;background:#000;overflow:hidden;}
@@ -23,16 +23,28 @@ button{color:#fff;background:#11233ebc;border:1px solid #7ba6cc9c;border-radius:
 #buttons button{height:min(9vh,66px);min-height:37px;padding:3px;font-size:clamp(10px,2.4vh,15px);background:#132d49c9;}
 #buttons button.pressed{background:#147e80e8;}
 #camera{position:absolute;left:41%;bottom:4%;height:24%;width:18%;border:1px dashed #578aaa77;border-radius:15px;color:#a5c3d5aa;font-size:11px;text-align:center;display:flex;align-items:center;justify-content:center;background:#07182742;touch-action:none;}
-#version{position:fixed;left:5px;top:5px;z-index:10;opacity:.55;font-size:10px;pointer-events:none;}
+#version{display:none}
 @media (pointer:fine){#enter{display:none!important}#hud{display:none!important}}
 @media (orientation:portrait){#pad{left:4%;bottom:8%;}#buttons{right:2%;bottom:8%;}}
+
+/* A2.2 compact mobile controls: keep title, portrait and minimap accessible. */
+#top{left:50%;right:auto;transform:translateX(-50%);top:max(3px,env(safe-area-inset-top));gap:4px;white-space:nowrap;align-items:center}
+#top button{font-size:clamp(10px,1.7vh,13px);padding:6px 9px;line-height:1.2;border-radius:8px;min-height:30px}
+#extras{display:inline-flex;gap:4px}
+#extras[hidden]{display:none}
+#pad{width:min(24vh,21vw);height:min(24vh,21vw);min-width:82px;min-height:82px;bottom:max(10%,env(safe-area-inset-bottom))}
+#camera{left:auto;right:18%;bottom:26%;width:min(18vh,14vw);height:min(18vh,14vw);border-radius:50%;font-size:10px;background:#07182730;border:1px dashed #67899950;color:#aecbd488}
+#buttons{bottom:max(10%,env(safe-area-inset-bottom));gap:4px}
+#buttons button{opacity:.87}
+#enter{bottom:22%}
+@media (orientation:portrait){#top{top:7px}#camera{right:33%;bottom:16%;}#buttons{bottom:8%;}}
 </style>
 </head>
 <body>
 <div id="stage"><canvas id="unity-canvas" tabindex="-1"></canvas></div>
-<div id="version">HIGHFLY A2 • AnyRPG Features Demo</div>
-<div id="bar"><strong>HIGHFLY A2 MOBILE LAB</strong><div id="progress"><div id="fill"></div></div><small id="status">Cargando Unity WebGL...</small></div>
-<div id="top"><button id="gfxMode" type="button">GFX: SEGURO</button><button id="toggleDiag" type="button">DIAG ON</button><button id="toggleHud" type="button">🎮 CONTROLES</button><button id="fullscreen" type="button">⛶ FULL SCREEN</button></div>
+<div id="version">HIGHFLY A2.2 • AnyRPG Features Demo</div>
+<div id="bar"><strong>HIGHFLY A2.2 MOBILE LAB</strong><div id="progress"><div id="fill"></div></div><small id="status">Cargando Unity WebGL...</small></div>
+<div id="top"><button id="advancedBtn" type="button" aria-label="Ajustes">⚙</button><span id="extras" hidden><button id="gfxMode" type="button">GFX SEGURO</button><button id="uiMode" type="button">UI MOBILE</button><button id="toggleDiag" type="button">DIAG OFF</button></span><button id="toggleHud" type="button">🎮 HUD</button><button id="fullscreen" type="button">⛶ PANTALLA</button></div>
 <button id="enter" type="button">⛶ ENTRAR EN PANTALLA COMPLETA</button>
 <div id="hud" aria-label="Controles táctiles">
 <div id="pad"><div id="knob"></div></div>
@@ -48,8 +60,12 @@ button{color:#fff;background:#11233ebc;border:1px solid #7ba6cc9c;border-radius:
  const canvas=document.getElementById('unity-canvas');
  const hud=document.getElementById('hud'), isTouch=matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0;
  const enter=document.getElementById('enter'), status=document.getElementById('status');
- let unity=null, hudVisible=isTouch;
- function send(method,arg){if(unity)try{unity.SendMessage('HighflyA2MobileBridge',method,arg)}catch(e){console.warn(e)}}
+ let unity=null, hudVisible=isTouch, activeScene='';
+ let mobileUI=isTouch;
+ function refreshHud(){const inWorld=!(activeScene.includes('MainMenu') || activeScene.includes('FeaturesDemoGame'));hud.style.display=isTouch&&hudVisible&&inWorld?'block':'none';}
+ window.HF_A2_setScene=scene=>{activeScene=String(scene||'');refreshHud();};
+ function sendTo(target,method,arg){if(unity)try{unity.SendMessage(target,method,arg)}catch(e){console.warn(e)}}
+ function send(method,arg){sendTo('HighflyA2MobileBridge',method,arg)}
  async function fullscreen(){
    try { if(!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({navigationUI:'hide'}); }
    catch(e){console.log('Fullscreen requires browser support',e);}
@@ -58,9 +74,11 @@ button{color:#fff;background:#11233ebc;border:1px solid #7ba6cc9c;border-radius:
  }
  document.getElementById('fullscreen').addEventListener('click',fullscreen);
  enter.addEventListener('click',fullscreen);
- document.getElementById('toggleHud').addEventListener('click',()=>{hudVisible=!hudVisible;hud.style.display=isTouch&&hudVisible?'block':'none'});
- let safeGraphics=true,showDiag=true;
- document.getElementById('gfxMode').addEventListener('click',()=>{safeGraphics=!safeGraphics;send('SetGraphicsMode',safeGraphics?'SAFE':'ORIGINAL');document.getElementById('gfxMode').textContent='GFX: '+(safeGraphics?'SEGURO':'ORIGINAL');});
+ document.getElementById('toggleHud').addEventListener('click',()=>{hudVisible=!hudVisible;refreshHud();});
+ document.getElementById('advancedBtn').addEventListener('click',()=>{const el=document.getElementById('extras');el.hidden=!el.hidden;});
+ document.getElementById('uiMode').addEventListener('click',()=>{mobileUI=!mobileUI;sendTo('HighflyA2UIScaler','SetUIMode',mobileUI?'MOBILE':'ORIGINAL');document.getElementById('uiMode').textContent='UI '+(mobileUI?'MOBILE':'ORIGINAL');});
+ let safeGraphics=true,showDiag=false;
+ document.getElementById('gfxMode').addEventListener('click',()=>{safeGraphics=!safeGraphics;send('SetGraphicsMode',safeGraphics?'SAFE':'ORIGINAL');document.getElementById('gfxMode').textContent='GFX '+(safeGraphics?'SEGURO':'ORIGINAL');});
  document.getElementById('toggleDiag').addEventListener('click',()=>{showDiag=!showDiag;send('SetDiagnostics',showDiag?'1':'0');document.getElementById('toggleDiag').textContent='DIAG '+(showDiag?'ON':'OFF');});
  const pad=document.getElementById('pad'),knob=document.getElementById('knob');
  let padId=null;
@@ -100,7 +118,7 @@ button{color:#fff;background:#11233ebc;border:1px solid #7ba6cc9c;border-radius:
  let loader=document.createElement('script');loader.src=buildUrl+'/{{{ LOADER_FILENAME }}}';
  loader.onload=()=>{
    createUnityInstance(canvas,config,p=>{document.getElementById('fill').style.width=(p*100).toFixed(1)+'%';status.textContent='Descargando mundo... '+Math.round(p*100)+'%';})
-   .then(inst=>{unity=inst;document.getElementById('bar').style.display='none';hud.style.display=isTouch&&hudVisible?'block':'none';canvas.focus();})
+   .then(inst=>{unity=inst;document.getElementById('bar').style.display='none';refreshHud();if(isTouch)sendTo('HighflyA2UIScaler','SetUIMode','MOBILE');canvas.focus();})
    .catch(err=>{status.textContent='ERROR AL INICIAR: '+err;console.error(err);});
  };
  loader.onerror=()=>{status.textContent='ERROR: no se encontró el cargador de Unity';};

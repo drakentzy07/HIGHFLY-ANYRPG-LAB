@@ -10,7 +10,7 @@ namespace Highfly
     public sealed class A2GraphicsDiagnostics : MonoBehaviour
     {
         private bool safe = true;
-        private bool showDiagnostics = true;
+        private bool showDiagnostics = false;
         private int originalQuality;
         private Camera cameraUnderTest;
         private CameraClearFlags savedClearFlags;

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Runtime.InteropServices;
+using UnityEngine.SceneManagement;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
@@ -11,7 +13,12 @@ namespace Highfly
     // AnyRPG already reads Gamepad.current (left/right sticks, buttons) for movement and menus.
     public sealed class AnyRpgA2MobileBridge : MonoBehaviour
     {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [DllImport("__Internal")] private static extern void HF_A2_NotifyScene(string scene);
+#endif
         private Gamepad virtualPad;
+        private string lastScene = "";
+        private float nextSceneCheck = 0f;
         private Vector2 leftStick;
         private Vector2 rightStick;
         private readonly HashSet<string> down = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -31,6 +38,17 @@ namespace Highfly
         {
             virtualPad = InputSystem.AddDevice<Gamepad>("Gamepad");
             Debug.Log("[HIGHFLY A2] Virtual mobile gamepad registered.");
+            ReportScene();
+        }
+
+        private void ReportScene()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            var name = SceneManager.GetActiveScene().name;
+            if (name == lastScene) return;
+            lastScene = name;
+            HF_A2_NotifyScene(name);
+#endif
         }
 
         // Format: "x,y" with dot decimal separator; browser joystick range [-1, 1].
@@ -67,6 +85,7 @@ namespace Highfly
 
         private void Update()
         {
+            if (Time.unscaledTime > nextSceneCheck) { nextSceneCheck = Time.unscaledTime + 0.35f; ReportScene(); }
             if (virtualPad == null) return;
             var state = new GamepadState
             {
