@@ -17,7 +17,7 @@ namespace HIGHFLY.Mobile
         IPointerDownHandler, IDragHandler, IPointerUpHandler
     {
         [SerializeField, InputControl(layout = "Vector2")]
-        private string inputControlPath = "<XInputController>/rightStick";
+        private string inputControlPath = "<Gamepad>/rightStick";
 
         [SerializeField, Range(0.05f, 2f)] private float sensitivity = 0.38f;
         [SerializeField] private bool invertHorizontal;
@@ -57,7 +57,9 @@ namespace HIGHFLY.Mobile
             if (invertVertical) look.y = -look.y;
 
             lastDragFrame = Time.frameCount;
-            SendValueToControl(Vector2.ClampMagnitude(look, 1f));
+            look = Vector2.ClampMagnitude(look, 1f);
+            HighflyTouchInputState.Look(look);
+            SendValueToControl(look);
         }
 
         private void LateUpdate()
