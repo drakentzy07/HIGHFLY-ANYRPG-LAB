@@ -13,17 +13,10 @@ MonoBehaviour:
   m_Name: CollectionQuest
   m_EditorClassIdentifier: 
   resourceName: Collection
-  displayName: 
+  displayName: Recolectá suministros
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This is a collection quest.
-
-
-    To complete it, you must collect
-    all the objectives.
-
-
-    You can find the items for this quest on the Vendor.'
+  description: "Reuní todos los objetos que pide la misión para completarla. Podés conseguir los objetos necesarios con el comerciante."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   optionalOverride: 0

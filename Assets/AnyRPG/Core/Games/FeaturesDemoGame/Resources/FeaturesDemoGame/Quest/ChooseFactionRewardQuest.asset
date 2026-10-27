@@ -13,17 +13,10 @@ MonoBehaviour:
   m_Name: ChooseFactionRewardQuest
   m_EditorClassIdentifier: 
   resourceName: Choose Faction Reward
-  displayName: 
+  displayName: Elegí tu facción
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This quest allows you to choose one faction reward from several.
-
-
-    It
-    is started from an item.
-
-
-    It is also repeatable.'
+  description: "Esta misión te permite elegir una recompensa de facción entre varias opciones. Se inicia usando un objeto y se puede repetir."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   optionalOverride: 0

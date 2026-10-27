@@ -13,19 +13,10 @@ MonoBehaviour:
   m_Name: DialogIntroductionQuest
   m_EditorClassIdentifier: 
   resourceName: Dialog Introduction
-  displayName: 
+  displayName: Introducción con diálogo
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This quest has an opening dialog.
-
-
-    Because the Opening Dialog
-    box is ticked in the configuration, it will automatically look for a dial with
-    the quest and display it before giving the option to accept the quest.
-
-
-    There
-    are no objectives, and it can be immediately completed.'
+  description: "Antes de aceptar esta misión aparece una conversación introductoria. No tiene objetivos y se puede completar de inmediato."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   isAchievement: 0

@@ -13,14 +13,10 @@ MonoBehaviour:
   m_Name: FinishAnotherQuestQuest
   m_EditorClassIdentifier: 
   resourceName: Finish Another Quest
-  displayName: 
+  displayName: Completá otra misión
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This is a quest that requires you to finish another quest.
-
-
-    To
-    complete it, you must finish the other quest'
+  description: "Para completar este encargo primero tenés que terminar la otra misión requerida."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   optionalOverride: 0

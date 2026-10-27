@@ -13,18 +13,10 @@ MonoBehaviour:
   m_Name: ChooseRewardQuest
   m_EditorClassIdentifier: 
   resourceName: Choose Reward
-  displayName: 
+  displayName: Elegí una recompensa
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This quest allows you to choose one reward from several.
-
-
-    It
-    is started from an item, so it is configured to allow completion without needing
-    to be in the quest log.
-
-
-    It is also repeatable.'
+  description: "Esta misión te permite elegir una recompensa entre varias. Se inicia con un objeto y puede completarse sin tenerla en el diario. También se puede repetir."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   optionalOverride: 0

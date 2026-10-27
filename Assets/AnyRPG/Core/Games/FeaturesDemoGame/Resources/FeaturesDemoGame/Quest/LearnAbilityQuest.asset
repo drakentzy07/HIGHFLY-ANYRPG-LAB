@@ -13,13 +13,10 @@ MonoBehaviour:
   m_Name: LearnAbilityQuest
   m_EditorClassIdentifier: 
   resourceName: Learn Ability
-  displayName: 
+  displayName: Aprendé habilidades
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This is a quest that requires you to learn abilities.
-
-
-'
+  description: "Para completar esta misión tenés que aprender las habilidades indicadas."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   optionalOverride: 0

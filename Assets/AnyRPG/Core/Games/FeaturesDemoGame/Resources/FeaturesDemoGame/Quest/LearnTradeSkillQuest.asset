@@ -13,14 +13,10 @@ MonoBehaviour:
   m_Name: LearnTradeSkillQuest
   m_EditorClassIdentifier: 
   resourceName: Learn Trade Skill
-  displayName: 
+  displayName: Aprendé un oficio
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This is a quest that requires you to learn trade skills.
-
-
-    You
-    can learn all the trade skills at the trainer'
+  description: "Aprendé los oficios que requiere esta misión. Podés aprenderlos con el instructor de profesiones."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   optionalOverride: 0

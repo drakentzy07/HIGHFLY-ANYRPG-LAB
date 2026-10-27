@@ -13,18 +13,10 @@ MonoBehaviour:
   m_Name: DialogObjectiveQuest
   m_EditorClassIdentifier: 
   resourceName: Dialog Objective
-  displayName: 
+  displayName: Conversación requerida
   icon: {fileID: 0}
   iconBackgroundImage: {fileID: 0}
-  description: 'This is a dialog objective quest.
-
-
-    To complete it, you must
-    complete, or have completed the dialog objective.
-
-
-    You can find the dialog
-    on the Dialog NPC.'
+  description: "Para completar esta misión tenés que terminar el diálogo indicado. Encontrarás esa conversación en el NPC de diálogos."
   useRegionalDescription: 0
   resourceDescriptionProfile: 
   isAchievement: 0
