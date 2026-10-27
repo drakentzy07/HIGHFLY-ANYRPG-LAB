@@ -43,7 +43,12 @@ namespace AnyRPG {
         }
 
         public void Follow() {
-            //Debug.Log("CastTargettingController.Update()");
+            // HIGHFLY Android: native circle follows the independent skill pointer.
+            // Preserve original mouse/gamepad aiming on desktop and other scenes.
+            if (HIGHFLY.Mobile.HighflyTouchAimState.Active) {
+                FollowVector(HIGHFLY.Mobile.HighflyTouchAimState.ScreenPosition);
+                return;
+            }
             if (controlsManager.GamepadModeActive == true) {
                 FollowVirtualCursor();
             } else {
