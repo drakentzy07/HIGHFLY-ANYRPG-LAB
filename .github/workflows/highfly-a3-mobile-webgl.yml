@@ -57,6 +57,8 @@ jobs:
           test -f Assets/HIGHFLY/Mobile/HighflyMobileAutoBootstrap.cs
           test -f Assets/HIGHFLY/Mobile/HighflyTouchMoveArea.cs
           test -f Assets/HIGHFLY/Mobile/HighflyTouchLookArea.cs
+          test -f Assets/Editor/HighflyAnyRpgA3MobileBuild.cs
+          test -f Assets/WebGLTemplates/HighflyA3Touch/index.html
           echo "A3 source and original demo scenes present."
 
       - name: Cache Unity Library
@@ -67,7 +69,7 @@ jobs:
           restore-keys: |
             anyrpg-6000.3.10f1-webgl-
 
-      - name: Compile A3 source with original demo WebGL
+      - name: Compile A3 touch HUD using dedicated mobile WebGL template
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -77,7 +79,7 @@ jobs:
         with:
           unityVersion: 6000.3.10f1
           targetPlatform: WebGL
-          buildMethod: Highfly.Editor.AnyRpgA1Build.BuildWebGL
+          buildMethod: Highfly.Editor.AnyRpgA3MobileBuild.BuildWebGL
           buildsPath: build
           allowDirtyBuild: true
 
@@ -85,8 +87,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ROOT=build/WebGL/HIGHFLY-ANYRPG-A1
+          ROOT=build/WebGL/HIGHFLY-ANYRPG-A3
           test -s "$ROOT/index.html"
+          grep -q "HIGHFLY A3" "$ROOT/index.html"
           test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.loader.js' -type f -print -quit)"
           test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.wasm*' -type f -print -quit)"
           test -n "$(find "$ROOT/Build" -maxdepth 1 -name '*.data*' -type f -print -quit)"
@@ -99,6 +102,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: HIGHFLY-ANYRPG-A3-MOBILE-TEST-WEBGL
-          path: build/WebGL/HIGHFLY-ANYRPG-A1/
+          path: build/WebGL/HIGHFLY-ANYRPG-A3/
           if-no-files-found: error
           retention-days: 14
