@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,height=device-height,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#080e1c">
+<title>HIGHFLY A5 · AnyRPG Native Mobile Lab</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070d18;color:#eef8ff;font-family:system-ui,Arial,sans-serif;overscroll-behavior:none;touch-action:none}
+#viewport{position:fixed;inset:0;overflow:hidden}
+#unity-canvas{display:block;width:100%;height:100%;outline:0;touch-action:none}
+#progressBox{position:fixed;left:50%;top:49%;transform:translate(-50%,-50%);width:min(85vw,440px);z-index:30;padding:24px;background:#142236ee;border:1px solid #497698;border-radius:16px;text-align:center;box-shadow:0 12px 48px #0008}
+h1{font-size:clamp(17px,3.5vw,24px);margin:0 0 8px;font-weight:800;letter-spacing:1.2px}
+p{margin:10px 0;color:#aecfe6;font-weight:500;font-size:13px}
+#bar{height:10px;margin-top:16px;background:#273c5c;border-radius:20px;overflow:hidden}
+#fill{height:100%;width:0;background:linear-gradient(90deg,#226aca,#31ddd4);transition:width .1s}
+#top{position:fixed;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));z-index:25;display:flex;align-items:center;gap:6px;pointer-events:none}
+#top span{font-size:10px;color:#d9f6ffb3;padding:8px;border:1px solid #527ca44d;background:#0a1423a5;border-radius:8px}
+#fullscreen,#retry{cursor:pointer;pointer-events:auto;font-size:13px;font-weight:700;padding:11px 13px;background:#193e65e0;color:white;border:1px solid #69b8e8;border-radius:10px}
+#fullscreen{position:fixed;z-index:26;right:max(10px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top))}
+#retry{display:none;margin:12px auto}
+#diagnostics{position:fixed;left:max(8px,env(safe-area-inset-left));top:max(38px,env(safe-area-inset-top) + 38px);display:flex;gap:4px;z-index:24;pointer-events:auto}
+#diagnostics button{font-size:11px;padding:6px 8px;color:#d5f1ff;background:#10294299;border:1px solid #377fa4aa;border-radius:9px}
+#rotate{display:none;position:fixed;inset:0;z-index:28;background:#101a2dd9;align-items:center;justify-content:center;text-align:center;padding:20px;font-weight:700}
+@media(orientation:portrait){#rotate{display:flex}#diagnostics{display:none}#fullscreen{z-index:30}}
+</style>
+</head>
+<body>
+<div id="viewport"><canvas id="unity-canvas" tabindex="0"></canvas></div>
+<div id="progressBox"><h1>HIGHFLY · ANYRPG A3</h1><p id="status">Preparando la demo táctil...</p><div id="bar"><div id="fill"></div></div><button id="retry">Reintentar</button></div>
+<div id="top"><span>A5 · Graphics Recovery</span></div>
+<div id="diagnostics"><button id="gfxBtn">GFX SEGURO</button><button id="diagBtn">DIAG ON</button></div>
+<button id="fullscreen">⛶ PANTALLA COMPLETA</button>
+<div id="rotate">↻ Girá el teléfono a HORIZONTAL para jugar HIGHFLY. La pantalla vertical deforma la creación del personaje y los controles.</div>
+<script>
+(function(){
+  "use strict";
+  const canvas=document.getElementById("unity-canvas"),
+        status=document.getElementById("status"),
+        progress=document.getElementById("progressBox"),
+        fill=document.getElementById("fill");
+  document.getElementById("fullscreen").addEventListener("click",async function(){
+    try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)
+      await document.documentElement.requestFullscreen({navigationUI:"hide"});}
+    catch(e){console.info("Fullscreen is optional:",e);}
+    try{if(screen.orientation&&screen.orientation.lock)await screen.orientation.lock("landscape");}
+    catch(e){console.info("Orientation lock not supported:",e);}
+    canvas.focus();
+  });
+  document.addEventListener("fullscreenchange",()=>{document.getElementById("fullscreen").style.display=document.fullscreenElement?"none":"block";});
+  let graphicsSafe=true, diagnosticsOn=true;
+  function send(method,value){if(window.HIGHFLY_A5)try{window.HIGHFLY_A5.SendMessage("HighflyA5GraphicsRecovery",method,value)}catch(err){console.info("Diagnostic bridge pending:",err)}}
+  document.getElementById("gfxBtn").onclick=()=>{
+    graphicsSafe=!graphicsSafe;
+    send("SetGraphicsMode",graphicsSafe?"SAFE":"ORIGINAL");
+    document.getElementById("gfxBtn").textContent=graphicsSafe?"GFX SEGURO":"GFX ORIGINAL";
+  };
+  document.getElementById("diagBtn").onclick=()=>{
+    diagnosticsOn=!diagnosticsOn;
+    send("SetDiagnostics",diagnosticsOn?"1":"0");
+    document.getElementById("diagBtn").textContent=diagnosticsOn?"DIAG ON":"DIAG OFF";
+  };
+  document.addEventListener("contextmenu",e=>e.preventDefault());
+  function fail(err){console.error(err);status.textContent="No se pudo iniciar Unity: "+String(err);document.getElementById("retry").style.display="block";}
+  document.getElementById("retry").onclick=()=>location.reload();
+  const config={
+    dataUrl:"Build/{{{ DATA_FILENAME }}}",
+    frameworkUrl:"Build/{{{ FRAMEWORK_FILENAME }}}",
+    codeUrl:"Build/{{{ CODE_FILENAME }}}",
+    streamingAssetsUrl:"StreamingAssets",
+    companyName:"{{{ COMPANY_NAME }}}",
+    productName:"{{{ PRODUCT_NAME }}}",
+    productVersion:"{{{ PRODUCT_VERSION }}}"
+  };
+  const loader=document.createElement("script");
+  loader.src="Build/{{{ LOADER_FILENAME }}}";
+  loader.onload=function(){
+    createUnityInstance(canvas,config,p=>{
+      fill.style.width=(p*100).toFixed(1)+"%";
+      status.textContent="Cargando demo móvil... "+Math.round(p*100)+"%";
+    }).then(inst=>{
+      window.HIGHFLY_A5=inst;
+      progress.style.display="none";
+      document.getElementById("top").style.display="none";
+      send("SetGraphicsMode","SAFE");
+      send("SetDiagnostics","1");
+      canvas.focus();
+      console.info("HIGHFLY A5 Mobile Unity loaded. HUD is rendered inside Unity (no duplicate HTML joystick).");
+    }).catch(fail);
+  };
+  loader.onerror=function(){fail("No se encontró el cargador WebGL.");};
+  document.body.appendChild(loader);
+})();
+</script>
+</body>
+</html>
