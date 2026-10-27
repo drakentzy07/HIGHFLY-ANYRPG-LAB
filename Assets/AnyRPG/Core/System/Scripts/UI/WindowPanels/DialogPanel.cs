@@ -39,6 +39,16 @@ namespace AnyRPG {
         private RawImage portraitSnapshotImage = null;
 
 
+        // Read-only presentation handles for HIGHFLY Android.
+        // AcceptQuest(), ViewQuest() and ConfirmAction() remain the native methods.
+        public TextMeshProUGUI MobileNpcName => characterNameText;
+        public TextMeshProUGUI MobileDialogBody => dialogText;
+        public Image MobileNpcPortrait => portraitImage;
+        public RawImage MobileNpcSnapshot => portraitSnapshotImage;
+        public HighlightButton MobileAcceptQuest => acceptQuestButton;
+        public HighlightButton MobileViewQuest => viewQuestButton;
+        public HighlightButton MobileContinue => continueButton;
+
         private int dialogIndex = 0;
 
         // game manager references

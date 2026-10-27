@@ -73,6 +73,11 @@ namespace AnyRPG {
         private DialogManagerClient dialogManagerClient = null;
 
         public QuestGiverQuestScript SelectedQuestGiverQuestScript { get => selectedQuestGiverQuestScript; set => selectedQuestGiverQuestScript = value; }
+        // Mobile presentation reads the same buttons and quest that the desktop UI uses.
+        public HighlightButton MobileAcceptQuest => acceptButton;
+        public HighlightButton MobileCompleteQuest => completeButton;
+        public Quest MobileCurrentQuest => currentQuest;
+        public QuestDetailsArea MobileQuestDetails => questDetailsArea;
 
         public override void Configure(SystemGameManager systemGameManager) {
             base.Configure(systemGameManager);

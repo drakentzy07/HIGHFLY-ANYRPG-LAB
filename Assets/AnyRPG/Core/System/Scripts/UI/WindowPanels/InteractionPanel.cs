@@ -5,6 +5,7 @@ namespace AnyRPG {
     public class InteractionPanel : WindowPanel {
 
         private InteractableBase interactable = null;
+        public InteractableBase MobileInteractable => interactable;
 
         [SerializeField]
         private GameObject interactableButtonPrefab = null;

@@ -57,6 +57,7 @@ namespace AnyRPG {
         }
 
         public RectTransform RectTransform { get => rectTransform; }
+        public Image MobileWindowBackground => backGroundImage;
         public DraggableWindow DragHandle { get => dragHandle; }
 
         public override void Configure(SystemGameManager systemGameManager) {
