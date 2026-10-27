@@ -1,4 +1,4 @@
-// HIGHFLY A3 — Mobile HUD adapter for AnyRPG Core 1.1.
+// HIGHFLY A4 — Compact mobile HUD and touch onboarding on proven AnyRPG Features Demo.
 // Does not edit AnyRPG engine. A gameplay scene must opt into this component.
 // Real skills and RPG windows use native AnyRPG APIs (not fake events).
 using System;
@@ -25,7 +25,11 @@ namespace HIGHFLY.Mobile
         private static HighflyAnyRpgMobileHud instance;
         private SystemGameManager gameManager;
         private Canvas canvas;
-        private GameObject gameplayLayer, menuLayer, backLayer;
+        private GameObject gameplayLayer, menuLayer, backLayer, tutorialLayer;
+        private bool tutorialDismissed;
+        private bool nativeModalVisible;
+        private static Sprite circleSprite, roundedSprite;
+        private const string TutorialSeenKey = "HIGHFLY_A4_MOBILE_GUIDE_SEEN";
         private TextMeshProUGUI[] skillTexts = new TextMeshProUGUI[4];
         private Image[] skillIcons = new Image[4];
         private Image[] skillCooldowns = new Image[4];
@@ -58,7 +62,9 @@ namespace HIGHFLY.Mobile
             }
             instance = this;
             DontDestroyOnLoad(gameObject);
+            tutorialDismissed = PlayerPrefs.GetInt(TutorialSeenKey, 0) == 1;
             Build();
+            tutorialLayer.SetActive(false);
             gameplayLayer.SetActive(false); // do not synthesize devices in login/character creator
             canvas.enabled = false;
         }
@@ -84,6 +90,8 @@ namespace HIGHFLY.Mobile
                 menuLayer.SetActive(false);
                 backLayer.SetActive(false);
                 openedNativeWindow = null;
+                tutorialLayer.SetActive(false);
+                nativeModalVisible = false;
                 activeLastFrame = false;
                 return;
             }
@@ -91,20 +99,50 @@ namespace HIGHFLY.Mobile
             if (!activeLastFrame)
             {
                 activeLastFrame = true;
-                gameplayLayer.SetActive(openedNativeWindow == null && !menuLayer.activeSelf);
-                if (hideDesktopActionBars) HideNative();
+                if (!tutorialDismissed) tutorialLayer.SetActive(true);
             }
 
-            if (hideDesktopActionBars) HideNative(); // newly opened gamepad window
+            SuppressDesktopHelp();
 
             if (openedNativeWindow != null && !openedNativeWindow.IsOpen)
-            {
                 openedNativeWindow = null;
-                backLayer.SetActive(false);
-                gameplayLayer.SetActive(true);
-            }
 
+            nativeModalVisible = gameManager.WindowManager != null
+                && gameManager.WindowManager.CurrentWindow != null;
+            bool canPlay = !nativeModalVisible && openedNativeWindow == null
+                && !menuLayer.activeSelf && !tutorialLayer.activeSelf;
+            if (gameplayLayer.activeSelf != canPlay)
+                gameplayLayer.SetActive(canPlay);
+            backLayer.SetActive(openedNativeWindow != null && openedNativeWindow.IsOpen);
+            if (hideDesktopActionBars) HideNative();
             RefreshSlots();
+        }
+
+        // These are the keyboard/desktop help overlays visible in the mobile video.
+        // Close instead of destroying to preserve upstream AnyRPG prefabs.
+        private void SuppressDesktopHelp()
+        {
+            if (gameManager == null || gameManager.UIManager == null) return;
+            var ui = gameManager.UIManager;
+            if (ui.keyboardHintWindow != null && ui.keyboardHintWindow.IsOpen)
+                ui.keyboardHintWindow.CloseWindow();
+            if (ui.helpMenuWindow != null && ui.helpMenuWindow.IsOpen)
+                ui.helpMenuWindow.CloseWindow();
+        }
+
+        public void DismissMobileTutorial()
+        {
+            tutorialDismissed = true;
+            PlayerPrefs.SetInt(TutorialSeenKey, 1);
+            PlayerPrefs.Save();
+            tutorialLayer.SetActive(false);
+        }
+
+        public void ReopenMobileTutorial()
+        {
+            if (nativeModalVisible || openedNativeWindow != null) return;
+            menuLayer.SetActive(false);
+            tutorialLayer.SetActive(true);
         }
 
         // Use the exact active actionbar slots, so icons, equipment assignment,
@@ -165,7 +203,8 @@ namespace HIGHFLY.Mobile
         {
             return gameManager != null && gameManager.PlayerManagerClient != null
                 && gameManager.PlayerManagerClient.UnitController != null
-                && openedNativeWindow == null && !menuLayer.activeSelf;
+                && openedNativeWindow == null && !menuLayer.activeSelf
+                && !tutorialLayer.activeSelf && !nativeModalVisible;
         }
 
         private void PressSlot(int slot)
@@ -201,7 +240,7 @@ namespace HIGHFLY.Mobile
             }
             bool show = !menuLayer.activeSelf;
             menuLayer.SetActive(show);
-            gameplayLayer.SetActive(!show);
+            gameplayLayer.SetActive(!show && !nativeModalVisible && !tutorialLayer.activeSelf);
         }
 
         public void OpenNative(string which)
@@ -240,7 +279,7 @@ namespace HIGHFLY.Mobile
             openedNativeWindow = null;
             backLayer.SetActive(false);
             menuLayer.SetActive(false);
-            gameplayLayer.SetActive(true);
+            gameplayLayer.SetActive(!nativeModalVisible && !tutorialLayer.activeSelf);
         }
 
         private void HideNative()
@@ -305,7 +344,7 @@ namespace HIGHFLY.Mobile
         // AnyRPG prefabs and remains simple to remove/rebuild.
         private void Build()
         {
-            GameObject canvasGo = new GameObject("HIGHFLY A3 Mobile Canvas",
+            GameObject canvasGo = new GameObject("HIGHFLY A4 Mobile Canvas",
                 typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler),
                 typeof(GraphicRaycaster));
             canvasGo.transform.SetParent(transform, false);
@@ -398,6 +437,9 @@ namespace HIGHFLY.Mobile
             var closeMenu = UiButton("CERRAR", frame, new Vector2(.5f,0),
                 new Vector2(0,62), new Vector2(255,78), C(88,54,102,255));
             closeMenu.onClick.AddListener(ToggleMenu);
+            var reopenGuide = UiButton("GUÍA TÁCTIL", frame, new Vector2(.5f,0),
+                new Vector2(0,153), new Vector2(228,64), C(29,97,133,230));
+            reopenGuide.onClick.AddListener(ReopenMobileTutorial);
             menuLayer.SetActive(false);
 
             backLayer = Layer("Back from native AnyRPG window", canvasGo.transform);
@@ -405,6 +447,26 @@ namespace HIGHFLY.Mobile
                 new Vector2(-125,-75), new Vector2(220,96), C(48,94,145,255));
             back.onClick.AddListener(CloseNativeWindow);
             backLayer.SetActive(false);
+
+            tutorialLayer = Layer("Guía táctil HIGHFLY", canvasGo.transform);
+            var overlay = Panel("Fondo guía", tutorialLayer.transform, C(4,10,24,200));
+            Stretch(overlay, Vector2.zero, Vector2.one);
+            var card = Panel("Guía móvil", tutorialLayer.transform, C(17,37,66,250));
+            Place(card, new Vector2(.5f,.5f), Vector2.zero, new Vector2(730,525));
+            Label("HIGHFLY · GUÍA TÁCTIL", card, new Vector2(.5f,1),
+                new Vector2(0,-70), new Vector2(680,65), 34);
+            Label("JOYSTICK IZQUIERDO · Caminar\\n" +
+                  "LADO DERECHO · Deslizá para mover la cámara\\n" +
+                  "SALTO / RODAR · Movimiento\\n" +
+                  "ATK / S1–S4 · Combate y habilidades\\n" +
+                  "••• · Inventario, personaje y opciones",
+                  card, new Vector2(.5f,.5f), new Vector2(0,4),
+                  new Vector2(678,275), 26);
+            var start = UiButton("¡ENTRAR AL MUNDO!", card,
+                new Vector2(.5f,0), new Vector2(0,70),
+                new Vector2(390,83), C(26,121,147,255));
+            start.onClick.AddListener(DismissMobileTutorial);
+            tutorialLayer.SetActive(false);
         }
 
         private static GameObject Layer(string name, Transform parent)
