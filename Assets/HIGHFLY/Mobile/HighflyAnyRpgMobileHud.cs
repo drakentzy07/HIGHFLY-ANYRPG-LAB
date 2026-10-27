@@ -186,7 +186,9 @@ namespace HIGHFLY.Mobile
 
         private static bool LooksLikeCombat(AbilityProperties ability, UnitController unit)
         {
-            if (ability == null || ability.IsAutoAttack) return false;
+            if (ability == null || ability.IsAutoAttack ||
+                ability is GatherAbilityProperties || ability is CraftAbilityProperties)
+                return false;
             string name = (ability.DisplayName ?? "").ToLowerInvariant();
             // Keep generic traversal, portals and summons out of the 4 combat slots.
             if (name.Contains("portal") || name.Contains("teleport") ||
@@ -195,7 +197,18 @@ namespace HIGHFLY.Mobile
                 name.Contains("recall") || name.Contains("hearth"))
                 return false;
             var target = ability.GetTargetOptions(unit);
-            return target != null && target.CanCastOnEnemy;
+            if (target != null && target.CanCastOnEnemy) return true;
+
+            // Some genuine offensive spells are self-centered AoE / projectiles.
+            // Check native AnyRPG effect types, not whether the slot is occupied.
+            // This preserves combat skills without ever equipping fishing/crafting.
+            var effects = ability.GetCastEndEffects(unit);
+            if (effects != null)
+                foreach (var effect in effects)
+                    if (effect is AttackEffectProperties ||
+                        effect is ProjectileEffectProperties)
+                        return true;
+            return false;
         }
 
         private void RefreshSlots()
@@ -219,23 +232,8 @@ namespace HIGHFLY.Mobile
                 if (LooksLikeCombat(ability, unit) && !candidates.Contains(ability))
                     candidates.Add(ability);
 
-            // On the stock Features Demo some learned starter skills use self/area
-            // targets. Include the player's non-travel active slots as a fallback
-            // rather than erasing the entire HUD like the previous A5 build.
-            if (candidates.Count < 4 && slots != null)
-                foreach (var slot in slots)
-                {
-                    var ability = slot != null ? slot.Useable as AbilityProperties : null;
-                    if (ability != null && !ability.IsAutoAttack &&
-                        !IsTravelOrSummon(ability) && !candidates.Contains(ability))
-                        candidates.Add(ability);
-                }
-            if (candidates.Count < 4)
-                foreach (var ability in manager.AbilityList.Values)
-                    if (ability != null && !ability.IsAutoAttack &&
-                        !IsTravelOrSummon(ability) && !candidates.Contains(ability))
-                        candidates.Add(ability);
-
+            // IMPORTANT: empty combat slots stay empty. Never backfill S1–S4
+            // with professions, travel abilities or noncombat utility.
             for (int index = 0; index < 4; index++)
             {
                 var ability = index < candidates.Count ? candidates[index] : null;
