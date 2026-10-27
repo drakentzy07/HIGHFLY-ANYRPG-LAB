@@ -12,7 +12,7 @@ namespace HIGHFLY.Mobile
         IPointerDownHandler, IDragHandler, IPointerUpHandler, ICancelHandler
     {
         [SerializeField] private RectTransform knob;
-        [SerializeField, Min(1f)] private float radius = 94f;
+        [SerializeField, Min(1f)] private float radius = 132f;
         [SerializeField, Range(0f, 0.4f)] private float deadZone = .07f;
         private int activePointer = int.MinValue;
 
@@ -71,7 +71,8 @@ namespace HIGHFLY.Mobile
         public static bool DashActive { get; private set; }
         public static Vector2 DashDirection { get; private set; }
         public static float DashUntil { get; private set; }
-        public const float DashSpeed = 10f;
+        public const float DashSpeed = 13f;
+        public static float DashRemaining { get { return Mathf.Max(0f, nextDashTime - Time.time); } }
 
         public static void Look(Vector2 value)
         {
@@ -88,7 +89,7 @@ namespace HIGHFLY.Mobile
             if (!Enabled || Time.time < nextDashTime) return;
             nextDashTime = Time.time + .85f;
             DashDirection = Move.sqrMagnitude > .025f ? Move.normalized : Vector2.up;
-            DashUntil = Time.time + .18f;
+            DashUntil = Time.time + .24f;
             DashActive = true;
             dashQueued = true;
         }
