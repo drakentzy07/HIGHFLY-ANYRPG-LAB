@@ -37,6 +37,12 @@ namespace HIGHFLY.Mobile
         private Image[] skillIcons = new Image[4];
         private Image[] skillCooldowns = new Image[4];
         private Button[] skillButtons = new Button[4];
+        private GameObject aimCancelButton;
+        private TextMeshProUGUI aimInstruction;
+        private int aimingSlot = -1;
+        private bool groundAimActive;
+        private bool aimWasCancelled;
+        private Vector2 aimTouchStart;
         private TextMeshProUGUI attackText;
         private TextMeshProUGUI menuFeedbackText;
         private Image attackIcon;
@@ -129,7 +135,11 @@ namespace HIGHFLY.Mobile
             if (gameplayLayer.activeSelf != canPlay)
                 gameplayLayer.SetActive(canPlay);
             HighflyTouchInputState.Enabled = canPlay;
-            if (!canPlay) HighflyTouchInputState.Reset();
+            if (!canPlay)
+            {
+                HighflyTouchInputState.Reset();
+                if (groundAimActive) CancelSkillAim();
+            }
             backLayer.SetActive(openedNativeWindow != null && openedNativeWindow.IsOpen);
             if (hideDesktopActionBars) HideNative();
             RefreshSlots();
@@ -283,6 +293,126 @@ namespace HIGHFLY.Mobile
                 name.Contains("summon") || name.Contains("dragon") ||
                 name.Contains("gate") || name.Contains("mount") ||
                 name.Contains("recall") || name.Contains("hearth");
+        }
+
+
+        // Touch skill handling (left joystick and right-hand pointer remain independent).
+        // Only ground-target skills use AnyRPG's original circular projector.
+        public void BeginSkillTouch(int index, Vector2 screenPosition)
+        {
+            aimWasCancelled = false;
+            if (!GameplayAvailable() || index < 0 || index >= combatAbilities.Length)
+                return;
+            var ability = combatAbilities[index];
+            var unit = gameManager.PlayerManagerClient.UnitController;
+            if (ability == null || unit == null) return;
+            var target = ability.GetTargetOptions(unit);
+            if (target == null || !target.RequiresGroundTarget) return;
+
+            if (groundAimActive) CancelSkillAim();
+            var manager = unit.CharacterAbilityManager;
+            manager.BeginAbility(ability, true);
+            if (!manager.WaitingForTarget()) return;
+
+            groundAimActive = true;
+            aimingSlot = index;
+            aimTouchStart = screenPosition;
+            HighflyTouchAimState.Active = true;
+            if (aimCancelButton != null) aimCancelButton.SetActive(true);
+            if (aimInstruction != null) aimInstruction.gameObject.SetActive(true);
+            if (gameManager.CastTargettingManager != null)
+                gameManager.CastTargettingManager.EnableProjector(ability);
+            DragSkillTouch(index, screenPosition);
+        }
+
+        public void DragSkillTouch(int index, Vector2 screenPosition)
+        {
+            if (!groundAimActive || aimingSlot != index) return;
+            if (aimCancelButton != null)
+            {
+                var rect = aimCancelButton.transform as RectTransform;
+                bool hoveringCancel = rect != null &&
+                    RectTransformUtility.RectangleContainsScreenPoint(rect,
+                        screenPosition, null);
+                if (aimInstruction != null)
+                    aimInstruction.text = hoveringCancel
+                        ? "SOLTÁ PARA CANCELAR"
+                        : "APUNTÁ CON EL DEDO  ·  SOLTÁ PARA LANZAR";
+            }
+
+            // Start at camera center, then steer from the original touch location:
+            // otherwise a skill icon at the lower right would aim at the sky/feet.
+            HighflyTouchAimState.ScreenPosition =
+                new Vector2(Screen.width * .50f, Screen.height * .54f) +
+                (screenPosition - aimTouchStart) * 1.40f;
+            var cast = gameManager != null ? gameManager.CastTargettingManager : null;
+            if (cast != null && cast.CastTargetController != null)
+                cast.CastTargetController.Follow();
+        }
+
+        public void EndSkillTouch(int index, Vector2 screenPosition)
+        {
+            if (aimWasCancelled)
+            {
+                aimWasCancelled = false;
+                return;
+            }
+            if (!groundAimActive || aimingSlot != index)
+            {
+                PressSkill(index);
+                return;
+            }
+
+            if (aimCancelButton != null &&
+                RectTransformUtility.RectangleContainsScreenPoint(
+                    aimCancelButton.transform as RectTransform, screenPosition, null))
+            {
+                CancelSkillAim();
+                return;
+            }
+            DragSkillTouch(index, screenPosition);
+            var unit = gameManager.PlayerManagerClient.UnitController;
+            var cast = gameManager.CastTargettingManager;
+            var camera = gameManager.CameraManager != null
+                ? gameManager.CameraManager.ActiveMainCamera : null;
+            if (cast == null || camera == null || unit == null)
+            {
+                CancelSkillAim();
+                return;
+            }
+            RaycastHit hit;
+            Ray ray = camera.ScreenPointToRay(HighflyTouchAimState.ScreenPosition);
+            if (!Physics.Raycast(ray, out hit, 100f,
+                gameManager.SystemConfigurationManager.DefaultGroundMask) ||
+                Vector3.Distance(unit.transform.position, hit.point) > 39f)
+            {
+                if (aimInstruction != null) aimInstruction.text = "FUERA DE ALCANCE";
+                CancelSkillAim();
+                return;
+            }
+
+            // Uses the engine's real ground-target cast and effect context.
+            groundAimActive = false;
+            aimingSlot = -1;
+            HighflyTouchAimState.Active = false;
+            if (aimCancelButton != null) aimCancelButton.SetActive(false);
+            if (aimInstruction != null) aimInstruction.gameObject.SetActive(false);
+            unit.CharacterAbilityManager.SetGroundTargetClient(hit.point);
+        }
+
+        public void CancelSkillAim()
+        {
+            if (!groundAimActive) return;
+            groundAimActive = false;
+            aimWasCancelled = true;
+            aimingSlot = -1;
+            HighflyTouchAimState.Active = false;
+            if (aimCancelButton != null) aimCancelButton.SetActive(false);
+            if (aimInstruction != null) aimInstruction.gameObject.SetActive(false);
+            if (gameManager != null && gameManager.PlayerManagerClient != null &&
+                gameManager.PlayerManagerClient.UnitController != null)
+                gameManager.PlayerManagerClient.UnitController.CharacterAbilityManager
+                    .DeactivateTargetingMode();
         }
 
         public void PressSkill(int index)
@@ -557,12 +687,26 @@ namespace HIGHFLY.Mobile
                 var button = UiButton("S"+(i+1), gameplayLayer.transform,
                     new Vector2(1,0), positions[i], new Vector2(112,112),
                     C(18,56,102,236));
-                button.onClick.AddListener(() => PressSkill(slot));
+                var pointer = button.gameObject.AddComponent<HighflySkillPointer>();
+                pointer.Hud = this;
+                pointer.Slot = slot;
                 skillButtons[i] = button;
                 skillTexts[i] = button.GetComponentInChildren<TextMeshProUGUI>();
                 skillIcons[i] = InnerIcon(button.transform);
                 skillCooldowns[i] = Cooldown(button.transform);
             }
+
+            // Aim cancel is visible only while dragging a ground-target skill.
+            var cancelAim = UiButton("✕", gameplayLayer.transform,
+                Vector2.one, new Vector2(-64,-166),
+                new Vector2(95,95), C(124,35,63,248));
+            cancelAim.onClick.AddListener(CancelSkillAim);
+            aimCancelButton = cancelAim.gameObject;
+            aimCancelButton.SetActive(false);
+            aimInstruction = Label("APUNTÁ CON EL DEDO  ·  SOLTÁ PARA LANZAR",
+                gameplayLayer.transform, new Vector2(.5f,1),
+                new Vector2(0,-91), new Vector2(680,66), 26);
+            aimInstruction.gameObject.SetActive(false);
 
             attackButton = UiButton("ATK", gameplayLayer.transform,
                 new Vector2(1,0), new Vector2(-133,140),
