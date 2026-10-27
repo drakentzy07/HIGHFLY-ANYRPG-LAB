@@ -18,6 +18,7 @@ namespace HIGHFLY.Mobile
         private Vector3 originalScale;
         private float nextRefresh;
         private GameObject questBanner;
+        private const string PremiumSurfaceName = "HIGHFLY A6 PREMIUM NATIVE FRAME";
         private TMP_Text bannerTitle;
         private TMP_Text bannerSubtitle;
         private bool premiumModal;
@@ -170,11 +171,7 @@ namespace HIGHFLY.Mobile
             }
 
             TranslateVisibleLabels();
-            if (premiumModal)
-            {
-                RefreshQuestHeader();
-                PositionBannerAboveActiveWindow();
-            }
+            if (premiumModal) RefreshQuestHeader();
             // Native interaction choices are pooled. Re-style newly spawned
             // buttons without altering their original listeners.
             if (current is InteractionPanel)
@@ -254,8 +251,9 @@ namespace HIGHFLY.Mobile
             premiumModal = window is DialogPanel ||
                 window is QuestGiverPanel || window is InteractionPanel;
             nativeWindow = window.GetComponentInParent<CloseableWindow>();
-            if (questBanner != null)
-                questBanner.SetActive(premiumModal);
+            // A6.2 integrates the title within the native premium frame.
+            // No floating old banner on top of the world or outside the panel.
+            if (questBanner != null) questBanner.SetActive(false);
 
             // Scale the REAL native window, not its children (which caused
             // layout mismatches in earlier Android experiments).
@@ -278,6 +276,7 @@ namespace HIGHFLY.Mobile
                 enlarged.localScale = originalScale * factor;
             }
 
+            ApplyPremiumWindowFrame(window);
             var background = nativeWindow != null &&
                 nativeWindow.MobileWindowBackground != null
                 ? nativeWindow.MobileWindowBackground : window.BackGroundImage;
@@ -385,6 +384,66 @@ namespace HIGHFLY.Mobile
                     hudRoot.rect.width*.5f-510f),
                 Mathf.Clamp(localPoint.y + 57f,
                     -hudRoot.rect.height*.5f+80f, hudRoot.rect.height*.5f-65f));
+        }
+
+
+        // Non-blocking native skin: original AnyRPG quest buttons, inventory
+        // slots, rewards, focus, close handling and saves stay in their own UI.
+        // The large shell is drawn behind them; old desktop window frames
+        // are not rendered as a second overlay.
+        private void ApplyPremiumWindowFrame(CloseableWindowContents window)
+        {
+            if (window == null || enlarged == null) return;
+            RectTransform holder = enlarged;
+            var found = holder.Find(PremiumSurfaceName);
+            if (found != null) return;
+            var shell = new GameObject(PremiumSurfaceName,
+                typeof(RectTransform),typeof(Image),typeof(Outline));
+            shell.transform.SetParent(holder,false);
+            shell.transform.SetAsFirstSibling();
+            var rect = shell.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
+            rect.offsetMin = new Vector2(-8,-8);
+            rect.offsetMax = new Vector2(8,8);
+            var graphic = shell.GetComponent<Image>();
+            graphic.color = Tone(8,20,42,244);
+            graphic.raycastTarget = false;
+            var line = shell.GetComponent<Outline>();
+            line.effectColor = Tone(53,191,240,229);
+            line.effectDistance = new Vector2(3,-3);
+            var bar = new GameObject("HIGHFLY platinum header",
+                typeof(RectTransform),typeof(Image));
+            bar.transform.SetParent(shell.transform,false);
+            var br = bar.GetComponent<RectTransform>();
+            br.anchorMin = new Vector2(0,1);br.anchorMax = new Vector2(1,1);
+            br.pivot = new Vector2(.5f,1);
+            br.anchoredPosition = new Vector2(0,0);
+            br.sizeDelta = new Vector2(-3,58);
+            var headerBg = bar.GetComponent<Image>();
+            headerBg.color = Tone(13,70,115,230);
+            headerBg.raycastTarget = false;
+            var label = new GameObject("HIGHFLY header copy",
+                typeof(RectTransform),typeof(TextMeshProUGUI));
+            label.transform.SetParent(bar.transform,false);
+            var lr = label.GetComponent<RectTransform>();
+            lr.anchorMin=Vector2.zero;lr.anchorMax=Vector2.one;
+            lr.offsetMin=new Vector2(22,4);lr.offsetMax=new Vector2(-10,-4);
+            var tmp = label.GetComponent<TextMeshProUGUI>();
+            tmp.fontSize=28;
+            tmp.enableAutoSizing=true;
+            tmp.fontSizeMin=18;
+            tmp.fontSizeMax=30;
+            tmp.alignment=TextAlignmentOptions.MidlineLeft;
+            tmp.color=Tone(214,244,255);
+            tmp.raycastTarget=false;
+            tmp.text = window is QuestGiverPanel ? "HIGHFLY · MISIONES Y RECOMPENSAS" :
+                window is DialogPanel ? "HIGHFLY · DIÁLOGO" :
+                window is InteractionPanel ? "HIGHFLY · INTERACCIÓN" :
+                window is InventoryPanel ? "HIGHFLY · INVENTARIO" :
+                window is CharacterPanel ? "HIGHFLY · PERSONAJE" :
+                window is QuestLogPanel ? "HIGHFLY · DIARIO DE MISIONES" :
+                window is CraftingPanel ? "HIGHFLY · FABRICACIÓN" :
+                "HIGHFLY · SISTEMA";
         }
 
         private void RefreshQuestHeader()

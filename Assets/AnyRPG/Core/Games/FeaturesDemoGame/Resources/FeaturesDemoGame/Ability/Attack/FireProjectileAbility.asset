@@ -50,7 +50,7 @@ MonoBehaviour:
     useableWithoutLearning: 0
     autoAddToBars: 1
     canSimultaneousCast: 0
-    canCastWhileMoving: 0
+    canCastWhileMoving: 1
     ignoreGlobalCoolDown: 0
     powerResourceName: Mana
     baseResourceCost: 0

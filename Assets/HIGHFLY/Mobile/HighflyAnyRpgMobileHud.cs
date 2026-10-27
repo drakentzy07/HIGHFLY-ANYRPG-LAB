@@ -51,6 +51,8 @@ namespace HIGHFLY.Mobile
         private float uiOpacity = 1f;
         private GameObject aimCancelButton;
         private TextMeshProUGUI aimInstruction;
+        private TextMeshProUGUI skillFeedbackText;
+        private float skillFeedbackUntil;
         private int aimingSlot = -1;
         private bool groundAimActive;
         private bool directionalAimActive;
@@ -99,6 +101,16 @@ namespace HIGHFLY.Mobile
             uiOpacity = Mathf.Clamp(PlayerPrefs.GetFloat(OpacityKey, 1f), .45f, 1f);
             for (int i = 0; i < 4; i++)
                 equippedNames[i] = PlayerPrefs.GetString(SkillKey + i, "");
+            // A6.2 migration: restore a balanced S23 camera exactly once.
+            // Future customization remains fully persistent.
+            if (PlayerPrefs.GetInt("HIGHFLY_A62_CAMERA_MIGRATED",0) == 0)
+            {
+                PlayerPrefs.SetFloat("JoystickLookSpeed", 2.0f);
+                PlayerPrefs.SetFloat("HIGHFLY_A6_CAMERA_HORIZONTAL", .96f);
+                PlayerPrefs.SetFloat("HIGHFLY_A6_CAMERA_VERTICAL", .90f);
+                PlayerPrefs.SetInt("HIGHFLY_A62_CAMERA_MIGRATED",1);
+                PlayerPrefs.Save();
+            }
             Build();
             tutorialLayer.SetActive(false);
             gameplayLayer.SetActive(false); // do not synthesize devices in login/character creator
@@ -167,6 +179,9 @@ namespace HIGHFLY.Mobile
             backLayer.SetActive(openedNativeWindow != null && openedNativeWindow.IsOpen);
             if (hideDesktopActionBars) HideNative();
             RefreshSlots();
+            if (skillFeedbackText != null && skillFeedbackText.gameObject.activeSelf
+                && Time.unscaledTime >= skillFeedbackUntil)
+                skillFeedbackText.gameObject.SetActive(false);
             if ((groundAimActive || directionalAimActive) && aimingSlot >= 0)
                 DragSkillTouch(aimingSlot, lastAimTouchPosition);
             if (dashLabel != null)
@@ -500,8 +515,21 @@ namespace HIGHFLY.Mobile
                 if (aimCancelButton != null) aimCancelButton.SetActive(false);
                 if (aimInstruction != null) aimInstruction.gameObject.SetActive(false);
                 if (cancel) return;
-                if (delta.sqrMagnitude > 28f*28f)
-                    AimAtWorldDirection(delta);
+                var chosenSkill = combatAbilities[index];
+                var caster = gameManager.PlayerManagerClient.UnitController;
+                var options = chosenSkill != null ? chosenSkill.GetTargetOptions(caster) : null;
+                // Tap = soft-target nearest frontal enemy. Drag = exact gesture direction.
+                if (chosenSkill != null && options != null && options.RequireTarget && options.CanCastOnEnemy)
+                {
+                    Vector2 stick = delta.sqrMagnitude > 28f*28f ? delta : Vector2.up;
+                    if (!AimAtWorldDirection(stick, options.MaxRange))
+                    {
+                        ShowSkillFeedback("S"+(index+1)+": SIN ENEMIGO EN ALCANCE");
+                        return;
+                    }
+                }
+                else if (delta.sqrMagnitude > 28f*28f)
+                    AimAtWorldDirection(delta, options != null ? options.MaxRange : 24f);
                 PressSkill(index);
                 return;
             }
@@ -559,18 +587,18 @@ namespace HIGHFLY.Mobile
 
         // Align direction with the actual camera and native enemy target.
         // Does not change hitboxes or invent a cone wider than the underlying spell.
-        private void AimAtWorldDirection(Vector2 drag)
+        private bool AimAtWorldDirection(Vector2 drag, float abilityRange)
         {
             var unit = gameManager.PlayerManagerClient.UnitController;
             var cam = gameManager.CameraManager != null
                 ? gameManager.CameraManager.ActiveMainCamera : null;
-            if (unit == null || cam == null) return;
+            if (unit == null || cam == null) return false;
             Vector3 forward=cam.transform.forward;forward.y=0f;
             Vector3 right=cam.transform.right;right.y=0f;
             if (forward.sqrMagnitude<.0001f) forward=unit.transform.forward;
             forward.Normalize(); right.Normalize();
             Vector3 heading=(right*drag.x+forward*drag.y).normalized;
-            if (heading.sqrMagnitude<.001f) return;
+            if (heading.sqrMagnitude<.001f) return false;
             unit.UnitMotor.FaceDirection(heading);
 
             UnitController closest=null;
@@ -585,13 +613,22 @@ namespace HIGHFLY.Mobile
                 var to=candidate.transform.position-unit.transform.position;
                 to.y=0;
                 float distance=to.magnitude;
-                if (distance > 35f || distance < .05f) continue;
+                if (distance > (abilityRange > .1f ? abilityRange : 25f) || distance < .05f) continue;
                 float alignment=Vector3.Dot(heading,to/distance);
                 if (alignment < .80f) continue;
                 float score=distance + (1f-alignment)*18f;
                 if (score < bestScore){bestScore=score;closest=candidate;}
             }
             if(closest != null) unit.SetTarget(closest);
+            return closest != null;
+        }
+
+        private void ShowSkillFeedback(string value)
+        {
+            if (skillFeedbackText == null) return;
+            skillFeedbackText.text = value;
+            skillFeedbackText.gameObject.SetActive(true);
+            skillFeedbackUntil = Time.unscaledTime + 2.4f;
         }
 
         public void PressSkill(int index)
@@ -600,7 +637,25 @@ namespace HIGHFLY.Mobile
             var ability = combatAbilities[index];
             if (ability == null) return;
             var unit = gameManager.PlayerManagerClient.UnitController;
-            unit.CharacterAbilityManager.BeginAbility(ability, true);
+            if (unit == null || unit.CharacterAbilityManager == null) return;
+            var props = ability.GetTargetOptions(unit);
+            if (props != null && props.RequireTarget && unit.Target == null)
+            {
+                ShowSkillFeedback("S"+(index+1)+": REQUIERE OBJETIVO");
+                return;
+            }
+            if (!unit.CharacterAbilityManager.PerformMovementCheck(ability))
+            {
+                ShowSkillFeedback("S"+(index+1)+": DETENETE PARA LANZAR");
+                return;
+            }
+            if (!unit.CharacterAbilityManager.CanCastAbility(ability,true))
+            {
+                ShowSkillFeedback("S"+(index+1)+": NO DISPONIBLE / MANÁ / RECARGA");
+                return;
+            }
+            if (!unit.CharacterAbilityManager.BeginAbility(ability, true))
+                ShowSkillFeedback("S"+(index+1)+": OBJETIVO O ESTADO NO VÁLIDO");
         }
 
         public void CycleEquippedSkill(int slotIndex)
@@ -861,8 +916,8 @@ namespace HIGHFLY.Mobile
             // AnyRPG multiplies camera right-stick input by this preference.
             // An unset value is zero: previously no swipe could rotate the camera.
             // Upgrade old slow A5 default but respect deliberate user settings.
-            if (PlayerPrefs.GetFloat("JoystickLookSpeed", 0f) <= 1.61f)
-                PlayerPrefs.SetFloat("JoystickLookSpeed", 2.85f);
+            if (PlayerPrefs.GetFloat("JoystickLookSpeed", 0f) <= 0.01f)
+                PlayerPrefs.SetFloat("JoystickLookSpeed", 2.0f);
 
             gameplayLayer = Layer("Gameplay", canvasGo.transform);
             // Create camera surface FIRST: action buttons added later win hit testing.
@@ -946,6 +1001,11 @@ namespace HIGHFLY.Mobile
                 gameplayLayer.transform, new Vector2(.5f,1),
                 new Vector2(0,-91), new Vector2(680,66), 26);
             aimInstruction.gameObject.SetActive(false);
+            skillFeedbackText = Label("", gameplayLayer.transform,
+                new Vector2(.5f,1f), new Vector2(0,-165),
+                new Vector2(920,64), 28);
+            skillFeedbackText.color = C(245,217,151,255);
+            skillFeedbackText.gameObject.SetActive(false);
 
             attackButton = UiButton("ATK", gameplayLayer.transform,
                 new Vector2(1,0), new Vector2(-133,140),
@@ -1084,12 +1144,12 @@ namespace HIGHFLY.Mobile
             Label("CÁMARA HORIZONTAL",panel,new Vector2(.5f,.5f),
                 new Vector2(-370,245),new Vector2(460,50),27);
             CreateSettingSlider(panel,new Vector2(220,245),
-                PlayerPrefs.GetFloat("HIGHFLY_A6_CAMERA_HORIZONTAL",1.25f),
+                PlayerPrefs.GetFloat("HIGHFLY_A6_CAMERA_HORIZONTAL",.96f),
                 .45f,2.7f,v=>PlayerPrefs.SetFloat("HIGHFLY_A6_CAMERA_HORIZONTAL",v));
             Label("CÁMARA VERTICAL",panel,new Vector2(.5f,.5f),
                 new Vector2(-370,155),new Vector2(460,50),27);
             CreateSettingSlider(panel,new Vector2(220,155),
-                PlayerPrefs.GetFloat("HIGHFLY_A6_CAMERA_VERTICAL",1.10f),
+                PlayerPrefs.GetFloat("HIGHFLY_A6_CAMERA_VERTICAL",.90f),
                 .45f,2.7f,v=>PlayerPrefs.SetFloat("HIGHFLY_A6_CAMERA_VERTICAL",v));
             Label("TAMAÑO DE HUD",panel,new Vector2(.5f,.5f),
                 new Vector2(-370,65),new Vector2(460,50),27);

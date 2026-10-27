@@ -41,3 +41,11 @@ IMPORTANTE: preservar rama y Pages A5. No declarar verde ningún ítem hasta com
 - [x] CI independiente con A6 template y build method.
 - [ ] Probar visualmente rig/animaciones (cuello), arcos reales de habilidades y ventanas en S23 Ultra.
 - [ ] Editor por arrastre de posiciones, indicadores de cono/línea vinculados a hitboxes reales y diseño de inventario final.
+
+## A6.2 — Nueva revisión aprobada
+- [x] Equilibrar cámara con migración de sensibilidad una sola vez y guardado posterior libre.
+- [x] Direccionales: elegir enemigo real en rango de la skill antes del cast, informar objetivo inválido y registrar rechazos nativos.
+- [x] Proyectiles de mago Fire/Ice y Tornado pueden iniciar casting en movimiento; validar animación y VFX en S23.
+- [x] Ventanas nativas con nueva superficie HIGHFLY premium detrás de los controles auténticos; encabezado integrado.
+- [ ] Reemplazo completo del contenido de cada panel, inventario en dos columnas y Quest Journal premium avanzado (siguiente fase, NO completado).
+- [ ] Validación del rig de cuello con clips y reproducción del S23 pendiente.
