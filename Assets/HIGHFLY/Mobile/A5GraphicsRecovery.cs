@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 namespace Highfly
 {
@@ -71,6 +72,18 @@ namespace Highfly
             if (Time.unscaledTime < nextCheck) return;
             nextCheck = Time.unscaledTime + 3f;
             Camera cam = Camera.main;
+            // AnyRPG may replace its primary camera during the loading transition.
+            // Keep diagnostics useful even if the replacement is not tagged MainCamera.
+            if (cam == null)
+            {
+                var cameras = Object.FindObjectsByType<Camera>(FindObjectsSortMode.None);
+                foreach (var candidate in cameras)
+                {
+                    if (!candidate.isActiveAndEnabled || candidate.targetTexture != null) continue;
+                    if (candidate.rect.width < .8f || candidate.rect.height < .8f) continue;
+                    if (cam == null || candidate.depth > cam.depth) cam = candidate;
+                }
+            }
             if (cam != cameraUnderTest)
             {
                 RestoreCamera();
@@ -132,16 +145,44 @@ namespace Highfly
                 " active=" + cam.gameObject.activeInHierarchy +
                 " mask=" + cam.cullingMask +
                 " pos=" + cam.transform.position.ToString("F0") +
-                " targetRT=" + (cam.targetTexture != null);
+                " targetRT=" + (cam.targetTexture != null) +
+                " rect=" + cam.rect.ToString("F1") +
+                " clear=" + cam.clearFlags;
             diagnostics =
                 "A2.1 [" + (safe ? "GFX SEGURO" : "GFX ORIGINAL") + "] / " +
                 SceneManager.GetActiveScene().name + "\n" +
                 camInfo + "\n" +
                 "Mesh=" + meshes + " Skinned=" + skinned + " Terrain=" + terrains +
                 " CamCount=" + cameras + "\n" +
+                "Potential overlay=" + FindOpaqueOverlay() + "\n" +
                 "URP=" + pipelineName + "  Quality=" +
                 QualitySettings.names[QualitySettings.GetQualityLevel()];
             Debug.Log("[HIGHFLY A5] " + diagnostics.Replace("\n", " | "));
+        }
+
+        // Check for a persistent opaque Unity UI backdrop left behind by a loading
+        // transition. This is diagnostic only: never delete upstream AnyRPG objects.
+        private static string FindOpaqueOverlay()
+        {
+            var graphics = Object.FindObjectsByType<Graphic>(FindObjectsSortMode.None);
+            foreach (var graphic in graphics)
+            {
+                if (graphic == null || !graphic.isActiveAndEnabled || graphic.color.a < .9f)
+                    continue;
+                var canvas = graphic.canvas;
+                if (canvas == null || canvas.renderMode != RenderMode.ScreenSpaceOverlay)
+                    continue;
+                if (graphic is not Image && graphic is not RawImage)
+                    continue;
+                var rect = graphic.rectTransform;
+                if (rect == null) continue;
+                var corners = new Vector3[4];
+                rect.GetWorldCorners(corners);
+                if (Mathf.Abs(corners[2].x - corners[0].x) >= Screen.width * .85f
+                    && Mathf.Abs(corners[2].y - corners[0].y) >= Screen.height * .85f)
+                    return graphic.name + " [" + canvas.name + "]";
+            }
+            return "none detected";
         }
 
         private void OnGUI()
@@ -158,7 +199,7 @@ namespace Highfly
                 diagnosticStyle.normal.textColor = Color.white;
             }
             float width = Mathf.Min(Screen.width * 0.62f, 850f);
-            float height = Mathf.Min(Screen.height * 0.23f, 100f);
+            float height = Mathf.Min(Screen.height * 0.30f, 145f);
             GUI.Box(new Rect((Screen.width - width) / 2f, 85f, width, height), diagnostics, diagnosticStyle);
         }
 
