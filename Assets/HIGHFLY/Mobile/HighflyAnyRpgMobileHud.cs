@@ -363,39 +363,41 @@ namespace HIGHFLY.Mobile
             Stretch(look, new Vector2(.50f,0), Vector2.one);
             look.gameObject.AddComponent<HighflyTouchLookArea>();
 
-            var move = Panel("Joystick movement", gameplayLayer.transform, C(22,70,105,125));
-            Place(move, new Vector2(0,0), new Vector2(225,215), new Vector2(300,300));
-            var knob = Panel("Joystick thumb", move, C(65,165,226,210));
-            Place(knob, new Vector2(.5f,.5f), Vector2.zero, new Vector2(98,98));
+            var move = Panel("Joystick movement", gameplayLayer.transform, C(22,70,105,95));
+            Place(move, new Vector2(0,0), new Vector2(183,173), new Vector2(240,240));
+            move.GetComponent<Image>().sprite = SoftDisc();
+            var knob = Panel("Joystick thumb", move, C(82,170,230,184));
+            Place(knob, new Vector2(.5f,.5f), Vector2.zero, new Vector2(85,85));
+            knob.GetComponent<Image>().sprite = SoftDisc();
             knob.GetComponent<Image>().raycastTarget = false;
             var joystick = move.gameObject.AddComponent<HighflyTouchMoveArea>();
             joystick.SetKnob(knob);
 
             OnScreen("SALTO", gameplayLayer.transform, new Vector2(.5f,0),
-                new Vector2(-265,160), new Vector2(142,142),
-                C(45,83,117,220), "<XInputController>/buttonWest");
+                new Vector2(-201,146), new Vector2(111,111),
+                C(45,93,140,174), "<XInputController>/buttonWest");
 
             // AnyRPG ROLL defaults to R on keyboard. Dash/FURY is a separate upgrade.
             OnScreen("RODAR", gameplayLayer.transform, new Vector2(.5f,0),
-                new Vector2(-100,160), new Vector2(142,142),
-                C(45,83,117,220), "<Keyboard>/r");
+                new Vector2(-68,146), new Vector2(111,111),
+                C(45,93,140,174), "<Keyboard>/r");
 
             var interact = UiButton("USAR", gameplayLayer.transform,
-                new Vector2(1,0), new Vector2(-460,90), new Vector2(135,100),
-                C(53,89,115,238));
+                new Vector2(1,0), new Vector2(-365,90), new Vector2(108,85),
+                C(40,80,125,188));
             interact.onClick.AddListener(PressInteract);
 
             // Arced four skills; center-right under the camera swipe surface.
             Vector2[] positions = {
-                new Vector2(-675,260), new Vector2(-540,365),
-                new Vector2(-385,415), new Vector2(-230,365)
+                new Vector2(-531,227), new Vector2(-411,308),
+                new Vector2(-283,336), new Vector2(-167,280)
             };
             for (int i = 0; i < 4; i++)
             {
                 int slot = i;
                 var button = UiButton("S"+(i+1), gameplayLayer.transform,
-                    new Vector2(1,0), positions[i], new Vector2(138,138),
-                    C(46,83,151,235));
+                    new Vector2(1,0), positions[i], new Vector2(112,112),
+                    C(35,87,154,190));
                 button.onClick.AddListener(() => PressSkill(slot));
                 skillButtons[i] = button;
                 skillTexts[i] = button.GetComponentInChildren<TextMeshProUGUI>();
@@ -404,15 +406,15 @@ namespace HIGHFLY.Mobile
             }
 
             attackButton = UiButton("ATK", gameplayLayer.transform,
-                new Vector2(1,0), new Vector2(-180,165),
-                new Vector2(185,185), C(49,97,173,245));
+                new Vector2(1,0), new Vector2(-133,140),
+                new Vector2(149,149), C(40,103,180,218));
             attackButton.onClick.AddListener(PressAttack);
             attackText = attackButton.GetComponentInChildren<TextMeshProUGUI>();
             attackIcon = InnerIcon(attackButton.transform);
 
             var menuBtn = UiButton("•••", gameplayLayer.transform,
-                Vector2.one, new Vector2(-84,-77),
-                new Vector2(120,88), C(40,75,111,235));
+                Vector2.one, new Vector2(-65,-62),
+                new Vector2(94,69), C(40,75,111,195));
             menuBtn.onClick.AddListener(ToggleMenu);
 
             menuLayer = Layer("Menu (modal)", canvasGo.transform);
@@ -469,6 +471,48 @@ namespace HIGHFLY.Mobile
             tutorialLayer.SetActive(false);
         }
 
+        private static Sprite SoftDisc()
+        {
+            if (circleSprite == null) circleSprite = CreateHudShape(false);
+            return circleSprite;
+        }
+
+        private static Sprite SoftRounded()
+        {
+            if (roundedSprite == null) roundedSprite = CreateHudShape(true);
+            return roundedSprite;
+        }
+
+        // Reusable lightweight alpha mask: circular action buttons and rounded menus.
+        // Native Unity UI sprites, no external assets or license obligations.
+        private static Sprite CreateHudShape(bool rounded)
+        {
+            const int n = 64;
+            var texture = new Texture2D(n, n, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float u = (x + .5f) * (2f / n) - 1f;
+                float v = (y + .5f) * (2f / n) - 1f;
+                float signedDistance;
+                if (rounded)
+                {
+                    float dx = Mathf.Max(Mathf.Abs(u) - .80f, 0f);
+                    float dy = Mathf.Max(Mathf.Abs(v) - .80f, 0f);
+                    signedDistance = Mathf.Sqrt(dx * dx + dy * dy) - .17f;
+                }
+                else
+                {
+                    signedDistance = Mathf.Sqrt(u*u + v*v) - .95f;
+                }
+                float alpha = Mathf.Clamp01(.04f - signedDistance * 32f);
+                texture.SetPixel(x, y, new Color(1,1,1,alpha));
+            }
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0,0,n,n), new Vector2(.5f,.5f));
+        }
+
         private static GameObject Layer(string name, Transform parent)
         {
             var go = new GameObject(name, typeof(RectTransform));
@@ -519,13 +563,14 @@ namespace HIGHFLY.Mobile
         {
             var image = Panel(text+" Button", parent, bg);
             Place(image, anchor, pos, size);
+            image.GetComponent<Image>().sprite = size.x <= size.y * 1.65f ? SoftDisc() : SoftRounded();
             var button = image.gameObject.AddComponent<Button>();
             var colors = button.colors;
             colors.highlightedColor = C(100,176,244,255);
             colors.pressedColor = C(29,119,175,255);
             button.colors = colors;
             Label(text, image, new Vector2(.5f,.5f),
-                Vector2.zero, size - new Vector2(8,8), 29);
+                Vector2.zero, size - new Vector2(8,8), Mathf.Clamp(size.y * .23f, 17f, 27f));
             return button;
         }
 
@@ -534,10 +579,11 @@ namespace HIGHFLY.Mobile
         {
             var rect = Panel(title+" OnScreenInput", parent, bg);
             Place(rect, anchor, pos, size);
+            rect.GetComponent<Image>().sprite = SoftDisc();
             var control = rect.gameObject.AddComponent<OnScreenButton>();
             control.controlPath = inputControl;
             Label(title, rect, new Vector2(.5f,.5f),
-                Vector2.zero, size, 27);
+                Vector2.zero, size, 20);
         }
 
         private static Image InnerIcon(Transform parent)
