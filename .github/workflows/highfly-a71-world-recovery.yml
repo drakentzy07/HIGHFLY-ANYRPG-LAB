@@ -5,7 +5,10 @@ on:
     branches:
       - highfly/a71-world-recovery-20261028
     paths:
-      - .github/workflows/highfly-a71-world-recovery.yml\n      - .github/scripts/highfly_a71_world_audit.py\n      - Assets/HIGHFLY/World/HighflyWorldExplorerLab.cs\n      - Assets/WebGLTemplates/HighflyA6Touch/index.html
+      - .github/workflows/highfly-a71-world-recovery.yml
+      - .github/scripts/highfly_a71_world_audit.py
+      - Assets/HIGHFLY/World/HighflyWorldExplorerLab.cs
+      - Assets/WebGLTemplates/HighflyA6Touch/index.html
       - .github/scripts/highfly_import_cc0_fantasy.py
       - Assets/Editor/HighflyFullWorldBuild.cs
       - Assets/Editor/HighflyAnyRpgA6MobileBuild.cs
