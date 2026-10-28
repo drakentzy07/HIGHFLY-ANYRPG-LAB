@@ -51,7 +51,7 @@ namespace Highfly.Editor
             Debug.Log("[HIGHFLY A6] SUCCESS: " + output);
         }
 
-        private static void EnsureTmpEssentialResources()
+        public static void EnsureTmpEssentialResources()
         {
             // Many pre-existing AnyRPG font materials point to TMP's standard SDF shader GUID.
             // AssetDatabase.ImportPackage(unitypackage, false) is asynchronous in batchmode
