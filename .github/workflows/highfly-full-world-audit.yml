@@ -1,0 +1,137 @@
+name: HIGHFLY FULL WORLD - Official Addon & Dependency Audit
+
+on:
+  push:
+    branches:
+      - highfly/full-world-genesis-20261028
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: highfly-full-world-audit
+  cancel-in-progress: true
+
+jobs:
+  audit-full:
+    name: Audit A Lost Soul + UMA + CC0 Fantasy references
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout protected HIGHFLY A6.2 foundation
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 1
+
+      - name: Fetch complete official 2026 add-on sources into isolated staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p full-staging
+          git clone --quiet --depth 1 https://github.com/AnyRPG/a-lost-soul-demo-games.git full-staging/a-lost-soul-demo-games
+          git clone --quiet --depth 1 https://github.com/AnyRPG/anyrpg-uma.git full-staging/anyrpg-uma
+          git -C full-staging/a-lost-soul-demo-games rev-parse HEAD | tee full-staging/lost-soul-sha.txt
+          git -C full-staging/anyrpg-uma rev-parse HEAD | tee full-staging/uma-addon-sha.txt
+          test -f full-staging/a-lost-soul-demo-games/Games/ALostSoulStoryDemo/Scenes/Game/ALostSoulStoryDemoGame/ALostSoulStoryDemoGame.unity
+          test -f full-staging/a-lost-soul-demo-games/Games/ALostSoulCharacterDemo/Scenes/Game/ALostSoulCharacterDemoGame/ALostSoulCharacterDemoGame.unity
+          test -f Assets/HIGHFLY/Mobile/HighflyAnyRpgMobileHud.cs
+          echo 'All native A Lost Soul scenes and HIGHFLY touch controls present.'
+
+      - name: Audit exact dependency availability and broken Unity GUID references
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          from urllib.parse import urljoin
+          from html.parser import HTMLParser
+          import re, json, os, collections
+          root=Path('full-staging')
+          addon=root/'a-lost-soul-demo-games'
+          uma=root/'anyrpg-uma'
+          scan=[Path('Assets/AnyRPG/Core'),addon,uma]
+          def count_category(folder):
+              return sum(1 for _ in folder.rglob('*.asset'))
+          def category(folder):
+              return {n:count_category(folder/'Content/ALostSoulDemoShared/Resources/ALostSoulDemoShared'/n) for n in ['Quest','Dialog','Ability','Item','Recipe','UnitProfile','LootTable']}
+          declared={}
+          referenced=collections.Counter()
+          file_sample={}
+          for base in scan:
+              for f in base.rglob('*.meta'):
+                  try:
+                      head=f.read_text(encoding='utf-8',errors='ignore')[:500]
+                  except Exception:continue
+                  m=re.search(r'(?m)^guid:\\s*([0-9a-f]{32})',head)
+                  if m: declared.setdefault(m.group(1),str(f))
+              for f in base.rglob('*'):
+                  if f.suffix.lower() not in ('.unity','.prefab','.asset','.mat','.controller','.overridecontroller'):
+                      continue
+                  try:
+                      # Stream to avoid loading the huge world scenes into memory
+                      with f.open('rt',encoding='utf-8',errors='ignore') as stream:
+                          for line in stream:
+                              for ref in re.findall(r'guid:\\s*([0-9a-f]{32})',line):
+                                  referenced[ref]+=1
+                                  if len(file_sample)<25000: file_sample.setdefault(ref,str(f))
+                  except Exception: pass
+          external=[(k,n,file_sample.get(k,'')) for k,n in referenced.items() if k not in declared and k!='0'*32]
+          external.sort(key=lambda x:x[1],reverse=True)
+          class Links(HTMLParser):
+              def __init__(self):super().__init__();self.links=[]
+              def handle_starttag(self,tag,attrs):
+                  for key,value in attrs:
+                      if value and key in ('href','data-downloadurl','data-download-url','onclick'):
+                          if any(tok in value.lower() for tok in ('wpdmdl','download','unitypackage','.zip')):
+                              self.links.append(value)
+          page='https://www.anyrpg.org/download/anyrpg-cc0-fantasy-content-pack/'
+          downloaded='NOT_YET'
+          links=[]
+          try:
+              req=Request(page,headers={'User-Agent':'Mozilla/5.0 (HIGHFLY dependency audit)'})
+              with urlopen(req,timeout=24) as resp:
+                  html=resp.read(800000).decode('utf-8','replace')
+              parser=Links();parser.feed(html)
+              links=list(dict.fromkeys(urljoin(page,x) for x in parser.links if not x.startswith('javascript:')))
+              downloaded='PAGE_ACCESSIBLE'
+          except Exception as exc:
+              downloaded='PAGE_ERROR_'+type(exc).__name__
+          result={
+             'engine':'AnyRPG Core Unity 6000.3.10f1',
+             'a_lost_soul_commit':(root/'lost-soul-sha.txt').read_text().strip(),
+             'anyrpg_uma_addon_commit':(root/'uma-addon-sha.txt').read_text().strip(),
+             'a_lost_soul_asset_files':count_category(addon),
+             'a_lost_soul_content_counts':category(addon),
+             'a_lost_soul_world_scenes':[p.name for p in (addon/'Content/ALostSoulDemoShared/Scenes').glob('*/*.unity')],
+             'total_known_meta_guids':len(declared),
+             'unique_references':len(referenced),
+             'unresolved_guid_count_before_cc0_and_uma2':len(external),
+             'top_unresolved_references':external[:45],
+             'cc0_pack_official_page':page,
+             'cc0_pack_reported_size_mb':996,
+             'cc0_page_status':downloaded,
+             'cc0_download_candidates':links[:12],
+             'uma_core':'NOT_INCLUDED: AnyRPG UMA addon requires UMA2/UMA-compatible engine',
+             'full_content_webgl_build':'BLOCKED until both 996MB CC0 Fantasy assets and UMA core are installed and references verified',
+          }
+          Path('full-staging/full-asset-audit.json').write_text(json.dumps(result,indent=2,ensure_ascii=False),encoding='utf-8')
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as o:
+              o.write('## HIGHFLY FULL - Official asset audit\n')
+              for k in ('engine','a_lost_soul_asset_files','a_lost_soul_content_counts','total_known_meta_guids','unresolved_guid_count_before_cc0_and_uma2','cc0_page_status','uma_core','full_content_webgl_build'):
+                  o.write(f'**{k}:** {result[k]}\n\n')
+              o.write('**Download candidates:** '+str(len(links))+'\n')
+          print(json.dumps({k:result[k] for k in ('a_lost_soul_asset_files','a_lost_soul_content_counts','unresolved_guid_count_before_cc0_and_uma2','cc0_page_status','cc0_download_candidates')},indent=2))
+          PY
+
+      - name: Save full-content manifests for HIGHFLY world integration
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-FULL-DEPENDENCY-AUDIT
+          path: |
+            full-staging/full-asset-audit.json
+            full-staging/lost-soul-sha.txt
+            full-staging/uma-addon-sha.txt
+          retention-days: 30
