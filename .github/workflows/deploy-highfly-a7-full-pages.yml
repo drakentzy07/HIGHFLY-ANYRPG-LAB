@@ -1,0 +1,83 @@
+name: Publish HIGHFLY A7 FULL only on Pages
+
+on:
+  workflow_run:
+    workflows:
+      - A7 - HIGHFLY FULL Lost Soul Fantasy UMA WebGL
+    branches:
+      - highfly/full-world-genesis-20261028
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: highfly-a7-full-pages-only
+  cancel-in-progress: false
+
+jobs:
+  deploy-a7-full-only:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download GREEN A7 FULL WebGL (not A6 Features Demo)
+        uses: actions/download-artifact@v4
+        with:
+          name: HIGHFLY-FULL-WORLD-LOST-SOUL-FANTASY-WEBGL
+          run-id: ${{ github.event.workflow_run.id }}
+          repository: drakentzy07/HIGHFLY-ANYRPG-LAB
+          github-token: ${{ github.token }}
+          path: site-publish
+
+      - name: Validate A7 FULL is standalone, static-safe and below Pages quota
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=site-publish
+          test -s "$root/index.html"
+          test -d "$root/Build"
+          test -d "$root/StreamingAssets"
+          grep -q 'HIGHFLY A7 FULL' "$root/index.html"
+          if find "$root/Build" -maxdepth 1 -type f \( -name '*.data.gz' -o -name '*.wasm.gz' -o -name '*.framework.js.gz' \) | grep -q .; then
+            echo "::error::A7 requires Unity WebGL decompression fallback (.unityweb) for GitHub Pages"
+            exit 1
+          fi
+          for glob in '*.loader.js' '*.data.unityweb' '*.wasm.unityweb' '*.framework.js.unityweb'; do
+            if ! compgen -G "$root/Build/$glob" >/dev/null; then
+              echo "::error::Missing A7 FULL Unity payload: $glob"
+              exit 1
+            fi
+          done
+          grep -q '\.unityweb' "$root/index.html"
+          touch "$root/.nojekyll"
+          total=$(du -sb "$root" | cut -f1)
+          echo "A7 FULL site bytes: $total"
+          if (( total > 950000000 )); then
+            echo "::error::A7 FULL exceeds safe 950MB Pages deployment budget."
+            exit 1
+          fi
+          echo 'No A2/A3/A4/A5/A6 backups copied. This deployment replaces the ENTIRE existing Pages site.'
+          find "$root" -maxdepth 2 -type f -printf '%p %s bytes\n' | sort | head -40
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload ONLY A7 FULL site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site-publish
+
+      - name: Deploy A7 FULL at site root (old A2-A6 removed from live Pages)
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Link for mobile tests
+        run: echo "HIGHFLY A7 FULL https://drakentzy07.github.io/HIGHFLY-ANYRPG-LAB/"
