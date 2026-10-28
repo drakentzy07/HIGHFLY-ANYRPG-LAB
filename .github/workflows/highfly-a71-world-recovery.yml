@@ -68,21 +68,6 @@ jobs:
           git submodule status
           df -h .
 
-      - name: Audit real Lost Soul scenes versus scene-node placeholders
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 .github/scripts/highfly_a71_world_audit.py
-
-      - name: Upload A7.1 world inventory and route evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: HIGHFLY-A71-WORLD-AUDIT
-          path: world-audit/
-          retention-days: 14
-          if-no-files-found: warn
-
       - name: Install compatible original UMA2 engine source v2.14f6
         shell: bash
         run: |
@@ -160,6 +145,21 @@ jobs:
           python3 .github/scripts/highfly_import_cc0_fantasy.py "$(cat /tmp/highfly-cc0-archive-path)"
           test -d Assets/AnyRPG/Addons/anyrpg-cc0-fantasy-content-pack
           df -h .
+
+      - name: Audit real Lost Soul scenes versus scene-node placeholders
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/highfly_a71_world_audit.py
+
+      - name: Upload A7.1 world inventory and route evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-A71-WORLD-AUDIT
+          path: world-audit/
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Compile actual A Lost Soul FULL world using FURY HUD
         uses: game-ci/unity-builder@v4
