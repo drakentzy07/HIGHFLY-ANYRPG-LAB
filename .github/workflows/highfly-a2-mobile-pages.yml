@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   build-and-deploy:
+    # Archived for A7 FULL-only Pages. Preserve all build source and historic recipes.
     name: Build Unity A2 mobile + deploy Pages
     runs-on: ubuntu-latest
     timeout-minutes: 90
