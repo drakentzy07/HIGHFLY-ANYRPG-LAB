@@ -78,6 +78,10 @@ jobs:
           if [[ -d /tmp/highfly-upstream-uma2/UMAProject/Assets/SourceShaders ]]; then
             cp -a /tmp/highfly-upstream-uma2/UMAProject/Assets/SourceShaders Assets/SourceShaders
           fi
+          # Compatibility patch is applied to the downloaded upstream copy ONLY.
+          # It removes SerializeField on a C# property, retaining serialization on _asset.
+          # Fails closed if UMA changes; see docs/A7-UMA2-UNITY6000-PATCH.md.
+          python3 .github/scripts/highfly_patch_uma2_unity6.py
           du -sh Assets/UMA
           df -h .
 
