@@ -111,7 +111,11 @@ namespace Highfly.World
             {
                 float h = Areas.Length * 51f + 90f;
                 GUI.Box(new Rect(x - 17, y + 60, buttonWidth + 17, h), "A7.1 · EXPLORACION");
-                GUI.Label(new Rect(x - 5, y + 90, buttonWidth, 38), "Viaje de prueba (sin saltar misiones)");
+                var playerController = manager.PlayerManagerClient.PlayerController;
+                int nearby = playerController != null && playerController.Interactables != null
+                    ? playerController.Interactables.Count : 0;
+                GUI.Label(new Rect(x - 5, y + 90, buttonWidth, 38),
+                    "USAR detecta: " + nearby + " objetos cercanos");
                 for (int i = 0; i < Areas.Length; i++)
                 {
                     Destination area = Areas[i];
