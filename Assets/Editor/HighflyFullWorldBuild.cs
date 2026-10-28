@@ -34,6 +34,10 @@ namespace Highfly.Editor
             }
             if (scenes.Count<12)
                 throw new Exception("[HIGHFLY FULL] World scene count unexpectedly low: "+scenes.Count);
+            // GitHub Pages cannot set Content-Encoding: gzip on static Unity payloads.
+            // Keep A7 FULL compressed, but let Unity's loader decompress .unityweb.
+            PlayerSettings.WebGL.compressionFormat=WebGLCompressionFormat.Gzip;
+            PlayerSettings.WebGL.decompressionFallback=true;
             PlayerSettings.WebGL.template="PROJECT:HighflyA6Touch";
             PlayerSettings.defaultWebScreenWidth=2316;
             PlayerSettings.defaultWebScreenHeight=1080;
