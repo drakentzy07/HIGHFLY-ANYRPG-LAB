@@ -22,8 +22,8 @@ concurrency:
 
 jobs:
   deploy-dual-site:
+    # Archived for A7 FULL-only Pages. Preserve all build source and historic recipes.
     # Only publish a GREEN, isolated A5 diagnostic build. Never replace stable A2/A3/A4.
-    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     environment:
