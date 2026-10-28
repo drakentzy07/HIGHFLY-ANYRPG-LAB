@@ -65,7 +65,7 @@ jobs:
                   try:
                       head=f.read_text(encoding='utf-8',errors='ignore')[:500]
                   except Exception:continue
-                  m=re.search(r'(?m)^guid:\\s*([0-9a-f]{32})',head)
+                  m=re.search(r'(?m)^guid:\s*([0-9a-f]{32})',head)
                   if m: declared.setdefault(m.group(1),str(f))
               for f in base.rglob('*'):
                   if f.suffix.lower() not in ('.unity','.prefab','.asset','.mat','.controller','.overridecontroller'):
@@ -74,7 +74,7 @@ jobs:
                       # Stream to avoid loading the huge world scenes into memory
                       with f.open('rt',encoding='utf-8',errors='ignore') as stream:
                           for line in stream:
-                              for ref in re.findall(r'guid:\\s*([0-9a-f]{32})',line):
+                              for ref in re.findall(r'guid:\s*([0-9a-f]{32})',line):
                                   referenced[ref]+=1
                                   if len(file_sample)<25000: file_sample.setdefault(ref,str(f))
                   except Exception: pass
