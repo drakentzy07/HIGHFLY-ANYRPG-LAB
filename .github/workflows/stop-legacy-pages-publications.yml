@@ -1,0 +1,38 @@
+name: Stop legacy Pages runs during A7 FULL migration
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/stop-legacy-pages-publications.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  stop-legacy-deployments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel pending legacy A1-A6 Pages publishers only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for workflow in \
+            deploy-anyrpg-a1-pages.yml \
+            highfly-a2-mobile-pages.yml \
+            deploy-anyrpg-a3-pages.yml \
+            deploy-anyrpg-a4-pages.yml \
+            deploy-anyrpg-a5-pages.yml \
+            deploy-anyrpg-a6-pages.yml
+          do
+            echo "Checking legacy publisher: $workflow"
+            ids="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?per_page=30" --jq '.workflow_runs[] | select(.status != "completed") | .id')"
+            for id in $ids; do
+              echo "Requesting cancellation of obsolete Pages publication $workflow run=$id"
+              gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$id/cancel" >/dev/null || true
+            done
+          done
+          echo "A7 FULL build workflows were not touched."
