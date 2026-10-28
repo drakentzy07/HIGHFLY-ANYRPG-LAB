@@ -22,6 +22,7 @@ concurrency:
 
 jobs:
   deploy-dual-site:
+    if: ${{ false }}
     # Archived for A7 FULL-only Pages. Preserve all build source and historic recipes.
     runs-on: ubuntu-latest
     timeout-minutes: 35
