@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   publish-a1:
+    # Archived for A7 FULL-only Pages. Preserve all build source and historic recipes.
     name: Publish existing GREEN AnyRPG A1 artifact
     runs-on: ubuntu-latest
     timeout-minutes: 25
