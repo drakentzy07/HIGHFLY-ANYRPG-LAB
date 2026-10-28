@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   deploy-a6-with-a5-backup:
-    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
+    # Archived for A7 FULL-only Pages. Preserve all build source and historic recipes.
     runs-on: ubuntu-latest
     timeout-minutes: 35
     environment:
