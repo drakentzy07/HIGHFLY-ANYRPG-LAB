@@ -100,8 +100,20 @@ jobs:
           from pathlib import Path
           page='https://www.anyrpg.org/download/anyrpg-cc0-fantasy-content-pack/?wpdmdl=885'
           req=Request(page,headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) Chrome/125.0','Referer':'https://www.anyrpg.org/download/anyrpg-cc0-fantasy-content-pack/'})
-          with urlopen(req,timeout=35) as response:
-              resolved=response.url
+          import time
+          from urllib.error import URLError, HTTPError
+          resolved=None
+          for attempt in range(1,6):
+              try:
+                  with urlopen(req,timeout=80) as response:
+                      resolved=response.url
+                  print('Publisher redirect verified on attempt',attempt)
+                  break
+              except (URLError, HTTPError, TimeoutError, OSError) as e:
+                  print(f'::warning::Fantasy CC0 publisher request {attempt}/5 failed: {type(e).__name__}.')
+                  if attempt < 5: time.sleep(min(10*attempt,40))
+          if not resolved:
+              raise SystemExit('Fantasy publisher unreachable after five attempts; no fake/partial build.')
           if urlparse(resolved).hostname not in ('mega.nz','mega.co.nz'):
               raise SystemExit('Publisher no longer redirects to its official public MEGA archive.')
           if '/file/' not in resolved or '#' not in resolved:
@@ -112,7 +124,9 @@ jobs:
           mkdir -p /tmp/highfly-fantasy-download
           # Older megatools versions may require the original #!ID!KEY format.
           megaurl="$(cat /tmp/highfly-cc0-mega-url)"
-          if ! megadl --no-progress --path /tmp/highfly-fantasy-download "$megaurl"; then
+          if ! timeout 900 megadl --no-progress --path /tmp/highfly-fantasy-download "$megaurl"; then
+              echo "::warning::MEGA modern URL failed. Trying official legacy public-link format."
+              sleep 10
               oldurl="$(python3 - <<'PY'
           from pathlib import Path
           from urllib.parse import urlparse
@@ -122,7 +136,19 @@ jobs:
           print('https://mega.nz/#!'+fid+'!'+key)
           PY
               )"
-              megadl --no-progress --path /tmp/highfly-fantasy-download "$oldurl"
+              completed=0
+              for attempt in 1 2 3; do
+                  if timeout 900 megadl --no-progress --path /tmp/highfly-fantasy-download "$oldurl"; then
+                      completed=1
+                      break
+                  fi
+                  echo "::warning::Fantasy CC0 MEGA legacy attempt $attempt/3 failed."
+                  sleep 15
+              done
+              if [[ "$completed" != 1 ]]; then
+                  echo "::error::Official Fantasy CC0 download unavailable; keeping previous Pages live."
+                  exit 1
+              fi
           fi
           python3 - <<'PY'
           from pathlib import Path
