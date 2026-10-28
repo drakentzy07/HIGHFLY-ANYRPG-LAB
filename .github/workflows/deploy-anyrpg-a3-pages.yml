@@ -22,10 +22,7 @@ concurrency:
 
 jobs:
   deploy-dual-site:
-    if: >-
-      github.event_name == 'workflow_run' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_repository.full_name == 'drakentzy07/HIGHFLY-ANYRPG-LAB'
+    # Archived for A7 FULL-only Pages. Preserve all build source and historic recipes.
     runs-on: ubuntu-latest
     timeout-minutes: 35
     environment:
