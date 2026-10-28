@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,height=device-height,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#080e1c">
-<title>HIGHFLY A7 FULL · Lost Soul Fantasy</title>
+<title>HIGHFLY A7.1 · World Recovery</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070d18;color:#eef8ff;font-family:system-ui,Arial,sans-serif;overscroll-behavior:none;touch-action:none}
@@ -28,8 +28,8 @@ p{margin:10px 0;color:#aecfe6;font-weight:500;font-size:13px}
 </head>
 <body>
 <div id="viewport"><canvas id="unity-canvas" tabindex="0"></canvas></div>
-<div id="progressBox"><h1>HIGHFLY · A7 FULL WORLD</h1><p id="status">Preparando el mundo completo...</p><div id="bar"><div id="fill"></div></div><button id="retry">Reintentar</button></div>
-<div id="top"><span>A7 FULL · Graphics Recovery</span></div>
+<div id="progressBox"><h1>HIGHFLY · A7.1 WORLD RECOVERY</h1><p id="status">Preparando el mundo completo...</p><div id="bar"><div id="fill"></div></div><button id="retry">Reintentar</button></div>
+<div id="top"><span>A7.1 · WORLD RECOVERY</span></div>
 <div id="diagnostics"><button id="gfxBtn">GFX SEGURO</button><button id="diagBtn">DIAG ON</button></div>
 <button id="fullscreen">⛶ PANTALLA COMPLETA</button>
 <div id="rotate">↻ Girá el teléfono a HORIZONTAL para jugar HIGHFLY. La pantalla vertical deforma la creación del personaje y los controles.</div>
@@ -86,7 +86,7 @@ p{margin:10px 0;color:#aecfe6;font-weight:500;font-size:13px}
       send("SetGraphicsMode","SAFE");
       send("SetDiagnostics","1");
       canvas.focus();
-      console.info("HIGHFLY A7 FULL WebGL loaded. HUD is rendered inside Unity (no duplicate HTML joystick).");
+      console.info("HIGHFLY A7.1 World Recovery WebGL loaded. HUD is rendered inside Unity (no duplicate HTML joystick).");
     }).catch(fail);
   };
   loader.onerror=function(){fail("No se encontró el cargador WebGL.");};
