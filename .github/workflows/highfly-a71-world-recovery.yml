@@ -1,0 +1,193 @@
+name: A7.1 - HIGHFLY World Recovery WebGL
+
+on:
+  push:
+    branches:
+      - highfly/a71-world-recovery-20261028
+    paths:
+      - .github/workflows/highfly-a71-world-recovery.yml\n      - .github/scripts/highfly_a71_world_audit.py\n      - Assets/HIGHFLY/World/HighflyWorldExplorerLab.cs\n      - Assets/WebGLTemplates/HighflyA6Touch/index.html
+      - .github/scripts/highfly_import_cc0_fantasy.py
+      - Assets/Editor/HighflyFullWorldBuild.cs
+      - Assets/Editor/HighflyAnyRpgA6MobileBuild.cs
+      - .gitmodules
+      - HIGHFLY-FULL-EXECUTION.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: highfly-a71-world-recovery-build
+  cancel-in-progress: true
+
+jobs:
+  full-world:
+    name: A7.1 scene-backed world exploration test
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Validate existing Unity activation without exposing credentials
+        shell: bash
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$UNITY_LICENSE" && -z "$UNITY_SERIAL" ]]; then
+            echo "::error::Unity license secret missing; A6.2 remains intact"
+            exit 1
+          fi
+          if [[ -z "$UNITY_EMAIL" || -z "$UNITY_PASSWORD" ]]; then
+            echo "::error::Unity authentication missing; A6.2 remains intact"
+            exit 1
+          fi
+
+      - name: Checkout HIGHFLY + pinned A Lost Soul and UMA add-ons
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          submodules: true
+          fetch-depth: 1
+
+      - name: Verify source assets are the REAL FULL world
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f Assets/AnyRPG/Addons/a-lost-soul-demo-games/Games/ALostSoulCharacterDemo/Scenes/Game/ALostSoulCharacterDemoGame/ALostSoulCharacterDemoGame.unity
+          test -f Assets/AnyRPG/Addons/a-lost-soul-demo-games/Games/ALostSoulStoryDemo/Scenes/Game/ALostSoulStoryDemoGame/ALostSoulStoryDemoGame.unity
+          test -f Assets/AnyRPG/Addons/a-lost-soul-demo-games/Content/ALostSoulDemoShared/Scenes/ExampleSoulForge/ExampleSoulForge.unity
+          test -f Assets/HIGHFLY/Mobile/HighflyAnyRpgMobileHud.cs
+          test -f Assets/HIGHFLY/Mobile/HighflyTouchLookArea.cs
+          test -f Assets/HIGHFLY/Mobile/HighflyA6AimGuide.cs
+          echo 'Both entire Lost Soul source trees and HIGHFLY FURY are present.'
+          git submodule status
+          df -h .
+
+      - name: Audit real Lost Soul scenes versus scene-node placeholders
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/highfly_a71_world_audit.py
+
+      - name: Upload A7.1 world inventory and route evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-A71-WORLD-AUDIT
+          path: world-audit/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Install compatible original UMA2 engine source v2.14f6
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2.14f6 --quiet https://github.com/umasteeringgroup/UMA.git /tmp/highfly-upstream-uma2
+          test -d /tmp/highfly-upstream-uma2/UMAProject/Assets/UMA/Core
+          cp -a /tmp/highfly-upstream-uma2/UMAProject/Assets/UMA Assets/UMA
+          if [[ -f /tmp/highfly-upstream-uma2/UMAProject/Assets/UMA.meta ]]; then
+            cp /tmp/highfly-upstream-uma2/UMAProject/Assets/UMA.meta Assets/UMA.meta
+          fi
+          if [[ -d /tmp/highfly-upstream-uma2/UMAProject/Assets/SourceShaders ]]; then
+            cp -a /tmp/highfly-upstream-uma2/UMAProject/Assets/SourceShaders Assets/SourceShaders
+          fi
+          # Compatibility patch is applied to the downloaded upstream copy ONLY.
+          # It removes SerializeField on a C# property, retaining serialization on _asset.
+          # Fails closed if UMA changes; see docs/A7-UMA2-UNITY6000-PATCH.md.
+          python3 .github/scripts/highfly_patch_uma2_unity6.py
+          du -sh Assets/UMA
+          df -h .
+
+      - name: Download official CC0 Fantasy Content Pack using MEGA public-file client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq megatools
+          python3 - <<'PY'
+          from urllib.request import Request,urlopen
+          from urllib.parse import urlparse
+          from pathlib import Path
+          page='https://www.anyrpg.org/download/anyrpg-cc0-fantasy-content-pack/?wpdmdl=885'
+          req=Request(page,headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) Chrome/125.0','Referer':'https://www.anyrpg.org/download/anyrpg-cc0-fantasy-content-pack/'})
+          with urlopen(req,timeout=35) as response:
+              resolved=response.url
+          if urlparse(resolved).hostname not in ('mega.nz','mega.co.nz'):
+              raise SystemExit('Publisher no longer redirects to its official public MEGA archive.')
+          if '/file/' not in resolved or '#' not in resolved:
+              raise SystemExit('Invalid MEGA public file link')
+          Path('/tmp/highfly-cc0-mega-url').write_text(resolved,encoding='utf-8')
+          print('Resolved official AnyRPG CC0 package to public MEGA file.')
+          PY
+          mkdir -p /tmp/highfly-fantasy-download
+          # Older megatools versions may require the original #!ID!KEY format.
+          megaurl="$(cat /tmp/highfly-cc0-mega-url)"
+          if ! megadl --no-progress --path /tmp/highfly-fantasy-download "$megaurl"; then
+              oldurl="$(python3 - <<'PY'
+          from pathlib import Path
+          from urllib.parse import urlparse
+          u=Path('/tmp/highfly-cc0-mega-url').read_text().strip()
+          fid=u.split('/file/',1)[1].split('#',1)[0]
+          key=u.split('#',1)[1]
+          print('https://mega.nz/#!'+fid+'!'+key)
+          PY
+              )"
+              megadl --no-progress --path /tmp/highfly-fantasy-download "$oldurl"
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          base=Path('/tmp/highfly-fantasy-download')
+          found=sorted((p for p in base.rglob('*') if p.is_file()),key=lambda p:p.stat().st_size,reverse=True)
+          if not found:raise SystemExit('MEGA returned no files.')
+          p=found[0]
+          sig=p.open('rb').read(8)
+          print('Official MEGA download bytes:',p.stat().st_size,'magic:',sig.hex(),'filename:',p.name)
+          if p.stat().st_size<100_000_000 or not(sig.startswith(b'\x1f\x8b') or sig.startswith(b'PK')):
+              raise SystemExit('Invalid/nonarchive CC0 package. FULL build remains blocked.')
+          Path('/tmp/highfly-cc0-archive-path').write_text(str(p))
+          PY
+          df -h .
+
+      - name: Import ALL CC0 fantasy assets preserving Unity GUIDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/highfly_import_cc0_fantasy.py "$(cat /tmp/highfly-cc0-archive-path)"
+          test -d Assets/AnyRPG/Addons/anyrpg-cc0-fantasy-content-pack
+          df -h .
+
+      - name: Compile actual A Lost Soul FULL world using FURY HUD
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.3.10f1
+          targetPlatform: WebGL
+          buildMethod: Highfly.Editor.HighflyFullWorldBuild.BuildWebGL
+          buildsPath: build
+          allowDirtyBuild: true
+
+      - name: Verify FULL WebGL product (never Features Demo)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=build/WebGL/HIGHFLY-FULL-WORLD
+          test -s "$ROOT/index.html"
+          test -n "$(find "$ROOT/Build" -maxdepth 1 -type f -name '*.loader.js' -print -quit)"
+          test -n "$(find "$ROOT/Build" -maxdepth 1 -type f -name '*.wasm*' -print -quit)"
+          test -n "$(find "$ROOT/Build" -maxdepth 1 -type f -name '*.data*' -print -quit)"
+          du -sh "$ROOT"
+          echo "FULL A Lost Soul world output verified: no Features Demo fallback."
+
+      - name: Upload isolated FULL world (not Pages until optimized)
+        uses: actions/upload-artifact@v4
+        with:
+          name: HIGHFLY-A71-WORLD-RECOVERY-WEBGL
+          path: build/WebGL/HIGHFLY-FULL-WORLD/
+          retention-days: 14
+          if-no-files-found: error
