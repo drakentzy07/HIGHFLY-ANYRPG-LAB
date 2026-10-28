@@ -1,0 +1,83 @@
+name: Publish HIGHFLY A7.1 World Recovery on Pages
+
+on:
+  workflow_run:
+    workflows:
+      - A7.1 - HIGHFLY World Recovery WebGL
+    branches:
+      - highfly/a71-world-recovery-20261028
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: highfly-a71-world-pages-only
+  cancel-in-progress: false
+
+jobs:
+  deploy-a71-world-recovery:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download GREEN A7.1 World Recovery WebGL from same triggering run
+        uses: actions/download-artifact@v4
+        with:
+          name: HIGHFLY-A71-WORLD-RECOVERY-WEBGL
+          run-id: ${{ github.event.workflow_run.id }}
+          repository: drakentzy07/HIGHFLY-ANYRPG-LAB
+          github-token: ${{ github.token }}
+          path: site-publish
+
+      - name: Validate A7.1 is complete, scene-backed and safe for Pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=site-publish
+          test -s "$root/index.html"
+          test -d "$root/Build"
+          test -d "$root/StreamingAssets"
+          grep -q 'HIGHFLY A7' "$root/index.html"
+          if find "$root/Build" -maxdepth 1 -type f \( -name '*.data.gz' -o -name '*.wasm.gz' -o -name '*.framework.js.gz' \) | grep -q .; then
+            echo "::error::A7 requires Unity WebGL decompression fallback (.unityweb) for GitHub Pages"
+            exit 1
+          fi
+          for glob in '*.loader.js' '*.data.unityweb' '*.wasm.unityweb' '*.framework.js.unityweb'; do
+            if ! compgen -G "$root/Build/$glob" >/dev/null; then
+              echo "::error::Missing A7 FULL Unity payload: $glob"
+              exit 1
+            fi
+          done
+          grep -q '\.unityweb' "$root/index.html"
+          touch "$root/.nojekyll"
+          total=$(du -sb "$root" | cut -f1)
+          echo "A7.1 site bytes: $total"
+          if (( total > 950000000 )); then
+            echo "::error::A7.1 exceeds safe 950MB Pages deployment budget."
+            exit 1
+          fi
+          echo 'A7.1 replaces the test site root only after successful world audit AND WebGL build; source branches preserved.'
+          find "$root" -maxdepth 2 -type f -printf '%p %s bytes\n' | sort | head -40
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload ONLY A7.1 WORLD RECOVERY site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site-publish
+
+      - name: Deploy A7.1 World Recovery at site root after successful build
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Link for mobile tests
+        run: echo "HIGHFLY A7.1 WORLD RECOVERY https://drakentzy07.github.io/HIGHFLY-ANYRPG-LAB/"
