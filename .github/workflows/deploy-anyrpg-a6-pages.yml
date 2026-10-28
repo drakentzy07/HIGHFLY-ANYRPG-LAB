@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   deploy-a6-with-a5-backup:
+    if: ${{ false }}
     # Archived for A7 FULL-only Pages. Preserve all build source and historic recipes.
     runs-on: ubuntu-latest
     timeout-minutes: 35
