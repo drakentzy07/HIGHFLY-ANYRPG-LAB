@@ -1,0 +1,8 @@
+[submodule "Assets/AnyRPG/Addons/a-lost-soul-demo-games"]
+	path = Assets/AnyRPG/Addons/a-lost-soul-demo-games
+	url = https://github.com/AnyRPG/a-lost-soul-demo-games.git
+	branch = main
+[submodule "Assets/AnyRPG/Addons/anyrpg-uma"]
+	path = Assets/AnyRPG/Addons/anyrpg-uma
+	url = https://github.com/AnyRPG/anyrpg-uma.git
+	branch = main
