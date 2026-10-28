@@ -1,0 +1,36 @@
+name: HIGHFLY CC0 Publisher Download Diagnostic
+
+on:
+  push:
+    branches:
+      - highfly/full-world-genesis-20261028
+    paths:
+      - .github/workflows/highfly-cc0-download-diagnostic.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - name: Probe official CC0 pack without downloading gigabytes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request, urllib.error, http.cookiejar, re,html
+          from urllib.parse import urljoin
+          base='https://www.anyrpg.org/download/anyrpg-cc0-fantasy-content-pack/'
+          opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+          for i,url in enumerate([base,base+'?wpdmdl=885',base+'?wpdmdl=885&refresh=1', 'https://www.anyrpg.org/?wpdmdl=885']):
+              try:
+                  request=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36','Referer':base,'Accept':'text/html,application/zip,application/octet-stream,*/*'})
+                  with opener.open(request,timeout=25) as r:
+                      data=r.read(4096); headers=dict(r.headers)
+                      print('PROBE',i,'status',r.status,'URL',r.url,'content-type',r.headers.get('Content-Type'),'length',r.headers.get('Content-Length'),'disposition',r.headers.get('Content-Disposition'))
+                      if b'<html' in data.lower() or b'<!doctype' in data.lower():print('BODY:',re.sub(r'\s+',' ',data.decode('utf8','replace'))[:1000])
+                      else:print('BINARY HEADER:',data[:40].hex())
+              except Exception as e:print('PROBE',i,'ERROR',type(e).__name__,str(e)[:350])
+          PY
