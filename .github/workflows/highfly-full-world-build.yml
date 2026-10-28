@@ -81,37 +81,53 @@ jobs:
           du -sh Assets/UMA
           df -h .
 
-      - name: Download original CC0 Fantasy Content Pack v1 from publisher
+      - name: Download official CC0 Fantasy Content Pack using MEGA public-file client
         shell: bash
         run: |
           set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq megatools
           python3 - <<'PY'
           from urllib.request import Request,urlopen
-          from urllib.parse import urljoin,urlparse
-          from html import unescape
-          import re
-          page='https://www.anyrpg.org/download/anyrpg-cc0-fantasy-content-pack/'
-          req=Request(page,headers={'User-Agent':'Mozilla/5.0'})
-          with urlopen(req,timeout=40) as response: html=response.read(1000000).decode('utf-8','replace')
-          matches=re.findall(r'(?:href|data-downloadurl)=["\x27]([^"\x27]*wpdmdl=885[^"\x27]*)',html)
-          if not matches: raise SystemExit('Official publisher has no CC0 archive link (wpdmdl=885).')
-          url=urljoin(page,unescape(matches[0]))
-          if urlparse(url).hostname not in ('www.anyrpg.org','anyrpg.org'):
-              raise SystemExit('Unverified download host; refusing to fetch')
-          with open('/tmp/highfly-cc0-download-url','w') as stream:stream.write(url)
-          print('Found official AnyRPG CC0 Fantasy archive link.')
+          from urllib.parse import urlparse
+          from pathlib import Path
+          page='https://www.anyrpg.org/download/anyrpg-cc0-fantasy-content-pack/?wpdmdl=885'
+          req=Request(page,headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) Chrome/125.0','Referer':'https://www.anyrpg.org/download/anyrpg-cc0-fantasy-content-pack/'})
+          with urlopen(req,timeout=35) as response:
+              resolved=response.url
+          if urlparse(resolved).hostname not in ('mega.nz','mega.co.nz'):
+              raise SystemExit('Publisher no longer redirects to its official public MEGA archive.')
+          if '/file/' not in resolved or '#' not in resolved:
+              raise SystemExit('Invalid MEGA public file link')
+          Path('/tmp/highfly-cc0-mega-url').write_text(resolved,encoding='utf-8')
+          print('Resolved official AnyRPG CC0 package to public MEGA file.')
           PY
-          curl --fail --location --retry 2 --connect-timeout 30 --max-time 1500 \
-            --speed-limit 10000 --speed-time 60 --silent --show-error \
-            --user-agent 'Mozilla/5.0' \
-            "$(cat /tmp/highfly-cc0-download-url)" -o /tmp/highfly-cc0-fantasy-2026.pkg
+          mkdir -p /tmp/highfly-fantasy-download
+          # Older megatools versions may require the original #!ID!KEY format.
+          megaurl="$(cat /tmp/highfly-cc0-mega-url)"
+          if ! megadl --no-progress --path /tmp/highfly-fantasy-download "$megaurl"; then
+              oldurl="$(python3 - <<'PY'
+          from pathlib import Path
+          from urllib.parse import urlparse
+          u=Path('/tmp/highfly-cc0-mega-url').read_text().strip()
+          fid=u.split('/file/',1)[1].split('#',1)[0]
+          key=u.split('#',1)[1]
+          print('https://mega.nz/#!'+fid+'!'+key)
+          PY
+              )"
+              megadl --no-progress --path /tmp/highfly-fantasy-download "$oldurl"
+          fi
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('/tmp/highfly-cc0-fantasy-2026.pkg')
-          magic=p.open('rb').read(8)
-          print('Official pack size:',p.stat().st_size,'bytes; signature:',magic.hex())
-          if p.stat().st_size<100_000_000 or not(magic.startswith(b'\x1f\x8b') or magic.startswith(b'PK')):
-              raise SystemExit('Publisher response is not the official large Unity/ZIP pack. FULL build blocked.')
+          base=Path('/tmp/highfly-fantasy-download')
+          found=sorted((p for p in base.rglob('*') if p.is_file()),key=lambda p:p.stat().st_size,reverse=True)
+          if not found:raise SystemExit('MEGA returned no files.')
+          p=found[0]
+          sig=p.open('rb').read(8)
+          print('Official MEGA download bytes:',p.stat().st_size,'magic:',sig.hex(),'filename:',p.name)
+          if p.stat().st_size<100_000_000 or not(sig.startswith(b'\x1f\x8b') or sig.startswith(b'PK')):
+              raise SystemExit('Invalid/nonarchive CC0 package. FULL build remains blocked.')
+          Path('/tmp/highfly-cc0-archive-path').write_text(str(p))
           PY
           df -h .
 
@@ -119,7 +135,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 .github/scripts/highfly_import_cc0_fantasy.py /tmp/highfly-cc0-fantasy-2026.pkg
+          python3 .github/scripts/highfly_import_cc0_fantasy.py "$(cat /tmp/highfly-cc0-archive-path)"
           test -d Assets/AnyRPG/Addons/anyrpg-cc0-fantasy-content-pack
           df -h .
 
